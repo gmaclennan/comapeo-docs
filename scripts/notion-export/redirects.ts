@@ -10,8 +10,12 @@
 // The current slug is computed fresh each run; the history file accumulates
 // over time so old URLs keep redirecting indefinitely.
 //
+// Status code: 302 (temporary) during dev — browsers and CDNs don't cache
+// these, so mistakes can be undone by a redeploy. Flip to 301 (permanent)
+// for production once URL space is stable.
+//
 // Sprint D ships EN-only. The es/pt branches are wired but the history
-// stays empty until Phase 4.5 wires Weblate.
+// stays empty until Phase 4.5 wires Crowdin.
 
 import { writeFile } from "node:fs/promises";
 import { computeSlug } from "./compute-slug.ts";
@@ -49,7 +53,7 @@ function computeEnSlugs(manifest: Manifest): Map<string, string> {
   return slugs;
 }
 
-type Redirect = { from: string; to: string; status: 301 };
+type Redirect = { from: string; to: string; status: 302 };
 
 /**
  * Build the redirect set from manifest + history. Mutates `history` by
@@ -77,7 +81,7 @@ export function buildRedirects(
       // (1) Bare-ID alias: /docs/<pageId> → canonical
       const bareIdUrl = `${localePrefix(locale)}${DOCS_BASE}/${pageId}`;
       if (bareIdUrl !== canonicalUrl) {
-        redirects.push({ from: bareIdUrl, to: canonicalUrl, status: 301 });
+        redirects.push({ from: bareIdUrl, to: canonicalUrl, status: 302 });
       }
 
       // Track current prefix in history; emit aliases for prior prefixes.
@@ -87,7 +91,7 @@ export function buildRedirects(
       for (const prior of priorPrefixes(history, pageId, locale)) {
         const priorUrl = `${localePrefix(locale)}${DOCS_BASE}/${prior}-${pageId}`;
         if (priorUrl === canonicalUrl) continue;
-        redirects.push({ from: priorUrl, to: canonicalUrl, status: 301 });
+        redirects.push({ from: priorUrl, to: canonicalUrl, status: 302 });
       }
     }
   }

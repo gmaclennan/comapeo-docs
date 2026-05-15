@@ -157,11 +157,11 @@ describe("slugPrefix", () => {
 describe("formatRedirects", () => {
   it("emits Cloudflare _redirects format with status code", () => {
     const out = formatRedirects([
-      { from: "/a", to: "/b", status: 301 },
-      { from: "/c", to: "/d", status: 301 },
+      { from: "/a", to: "/b", status: 302 },
+      { from: "/c", to: "/d", status: 302 },
     ]);
-    expect(out).toContain("/a /b 301");
-    expect(out).toContain("/c /d 301");
+    expect(out).toContain("/a /b 302");
+    expect(out).toContain("/c /d 302");
     expect(out.startsWith("# Generated")).toBe(true);
   });
 

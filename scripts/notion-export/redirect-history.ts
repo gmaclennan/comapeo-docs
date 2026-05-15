@@ -2,7 +2,7 @@
 //
 // On each pipeline run we compute the current canonical slug for every page.
 // If a page's current slug differs from the last entry in its history, we
-// append the new prefix and emit a 301 alias from the old URL to the new
+// append the new prefix and emit a 302 alias from the old URL to the new
 // (see tree-publish-plan §8 — prior-slug aliases).
 //
 // File: `static/redirect-history.json` — committed alongside the docs so
