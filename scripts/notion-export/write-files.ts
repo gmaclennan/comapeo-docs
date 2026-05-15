@@ -12,14 +12,15 @@
 import {
   glob,
   mkdir,
+  readdir,
   readFile,
   rename,
   rm,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import type { Pages } from "./walk-tree.ts";
-import { log, warn } from "./logger.ts";
+import { warn } from "./logger.ts";
 
 const PAGEID_FILENAME_RE = /(?:^|\/)([0-9a-f]{32})\.md$/;
 
@@ -64,24 +65,18 @@ export async function syncFilesystem(
     }
 
     // ✅ page: ensure file lives at destAbs with the right content.
+    await mkdir(dirname(destAbs), { recursive: true });
     if (existingAbs && existingAbs !== destAbs) {
-      await mkdir(dirname(destAbs), { recursive: true });
       await rename(existingAbs, destAbs);
-      await writeFile(destAbs, page.body, "utf8");
       dirsTouched.add(dirname(existingAbs));
-      log(
-        `moved: ${relative(options.docsDir, existingAbs)} → ${relative(options.docsDir, destAbs)}`,
-      );
       summary.moved += 1;
+    }
+    const current = await readFileOrNull(destAbs);
+    if (current === page.body) {
+      summary.unchanged += 1;
     } else {
-      await mkdir(dirname(destAbs), { recursive: true });
-      const current = await readFileOrNull(destAbs);
-      if (current === page.body) {
-        summary.unchanged += 1;
-      } else {
-        await writeFile(destAbs, page.body, "utf8");
-        summary.written += 1;
-      }
+      await writeFile(destAbs, page.body, "utf8");
+      summary.written += 1;
     }
     existing.delete(page.id);
   }
@@ -92,16 +87,25 @@ export async function syncFilesystem(
     dirsTouched.add(dirname(abs));
     summary.deleted += 1;
   }
-  if (summary.deleted > 0) {
-    warn(`deleted ${summary.deleted} file(s) for archived pages`);
-  }
+  // (The orchestrator logs deletion counts from the returned summary.)
 
-  // Pass 3: best-effort empty-dir cleanup so renames don't leave debris.
+  // Pass 3: clean up directories left behind by renames + archived pages.
+  // A renamed section leaves its OLD dir containing only `_category_.json`
+  // (the new dir gets a fresh one written by category-json.ts). Remove the
+  // orphan and the empty dir so git doesn't track stale paths.
   for (const dir of dirsTouched) {
     try {
       await rm(dir, { recursive: false });
     } catch {
-      // dir still has files — leave it alone
+      try {
+        const entries = await readdir(dir);
+        if (entries.length === 1 && entries[0] === "_category_.json") {
+          await rm(join(dir, "_category_.json"));
+          await rm(dir);
+        }
+      } catch {
+        // dir still has other content — leave it alone
+      }
     }
   }
 

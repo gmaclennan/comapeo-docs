@@ -17,7 +17,7 @@ import {
   normalizePageId,
 } from "./fetch.ts";
 import { NOTION_ROOT_PAGE_ID } from "./env.ts";
-import { debug, error, log, warn } from "./logger.ts";
+import { debug, error, log } from "./logger.ts";
 import { extractChildIds, extractMentionIds } from "./parse.ts";
 
 export type Page = {
@@ -89,10 +89,10 @@ type WalkInto = {
 async function walkInto(args: WalkInto): Promise<void> {
   const id = normalizePageId(args.pageId);
 
+  // A page can be referenced from multiple places (e.g., a child reference
+  // plus a <mention-page> from another branch). The Notion tree itself is
+  // strictly hierarchical, so we just dedupe and keep the first walk.
   if (args.pages.has(id)) {
-    warn(
-      `cycle detected at ${id} (depth ${args.depth}); not recursing again`,
-    );
     return;
   }
 
