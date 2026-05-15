@@ -95,17 +95,15 @@ export async function syncFilesystem(
   // orphan and the empty dir so git doesn't track stale paths.
   for (const dir of dirsTouched) {
     try {
-      await rm(dir, { recursive: false });
-    } catch {
-      try {
-        const entries = await readdir(dir);
-        if (entries.length === 1 && entries[0] === "_category_.json") {
-          await rm(join(dir, "_category_.json"));
-          await rm(dir);
-        }
-      } catch {
-        // dir still has other content — leave it alone
+      const entries = await readdir(dir);
+      if (entries.length === 0) {
+        await rm(dir, { recursive: true });
+      } else if (entries.length === 1 && entries[0] === "_category_.json") {
+        await rm(dir, { recursive: true });
       }
+      // Otherwise the dir still has live content — leave it alone.
+    } catch {
+      // Dir doesn't exist (already removed by a previous iteration) — fine.
     }
   }
 

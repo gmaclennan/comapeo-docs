@@ -24,18 +24,27 @@ function isSection(page: Page): boolean {
 }
 
 export function computePagePaths(pages: Pages): void {
-  // Compute dirSegments per page. A page's dirSegments are formed from its
-  // ANCESTOR sections' titles (not its own — its own slug only affects its
-  // children's path). For root, dirSegments is empty.
+  // dirSegments are the slugified titles of all SECTION ancestors plus
+  // (if this page is itself a section) its own slugified title. So:
+  //   root            → []
+  //   top-level leaf  → []
+  //   section         → [section-slug]
+  //   article in section → [section-slug]
+  //   sub-section     → [section-slug, sub-section-slug]
+  //   leaf in sub-section → [section-slug, sub-section-slug]
+  //
+  // Root never contributes a dir segment — it lives at docs/<rootId>.md.
   for (const page of pages.values()) {
     const segments: string[] = [];
     for (const ancestorId of page.ancestorIds) {
       const ancestor = pages.get(ancestorId);
       if (!ancestor) continue;
-      // Root never contributes a dir segment (lives at docs/<rootId>.md).
       if (ancestor.parentId === null) continue;
       if (!isSection(ancestor)) continue;
       segments.push(dirSlug(ancestor.title));
+    }
+    if (page.parentId !== null && isSection(page)) {
+      segments.push(dirSlug(page.title));
     }
     page.dirSegments = segments;
     page.relPath =
