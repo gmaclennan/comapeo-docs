@@ -7,7 +7,8 @@
 // URLs are categorized per transforms-plan §12 before download:
 //   - notion-hosted: download to ImageStore, rewrite URL to public path
 //   - external: leave alone (wikipedia, public CDN, etc.)
-//   - file:// : log warning, leave alone (broken; pre-existing data hygiene issue)
+//   - file:// : pre-resolve via block API (see resolveFileUrls) into a
+//     Notion-hosted S3 URL; resolver failures fall through to lint-warning
 //   - bare-filename: log warning, leave alone (broken; pre-existing data hygiene issue)
 
 import { createHash } from "node:crypto";

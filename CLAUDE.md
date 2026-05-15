@@ -9,7 +9,8 @@ This file is short by design — it's a routing document. For depth, follow the 
 The plans in `.claude/skills/notion-markdown-export/` are authoritative. Read them before making non-trivial changes:
 
 - `tree-publish-plan.md` — page tree shape, URL/slug pattern (`-<pageId>` suffix), redirects, two-branch publish, phasing
-- `translations-plan.md` — Weblate integration (Phase 4.5; not active yet)
+- `translations-decision.md` — **active** translation plan: Crowdin OSS (Phase 4.5; not yet wired)
+- `translations-plan.md` — older Weblate-based translation plan, kept as fallback reference
 - `transforms-plan.md` — HTML / callout / image transforms
 - `SKILL.md` — Notion Markdown Content API reference + Enhanced Markdown quirks
 
@@ -87,7 +88,7 @@ This section grows as Sprints A–E land.
 - New theme swizzle → `src/theme/...` (Docusaurus convention)
 - New build-time tooling → `scripts/<tool-name>/` (flat structure preferred)
 - New content (English) → authored in Notion at the page tree root, exported by the pipeline
-- New translation → Weblate (Phase 4.5)
+- New translation → Crowdin (Phase 4.5; see `translations-decision.md`)
 
 ## scripts/notion-export/
 
