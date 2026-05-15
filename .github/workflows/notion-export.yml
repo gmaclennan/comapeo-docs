@@ -1,0 +1,70 @@
+name: Notion export
+
+# Manual-trigger only for now. Once `staging` / `published` branches and
+# Cloudflare Pages deploys are wired up, add a schedule and a PR-creation
+# step (see tree-publish-plan §7).
+
+on:
+  workflow_dispatch:
+    inputs:
+      root_page_id:
+        description: "Notion root page id (32 hex, no dashes). Defaults to repo secret NOTION_ROOT_PAGE_ID."
+        required: false
+        type: string
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run notion-export pipeline
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_ROOT_PAGE_ID: ${{ inputs.root_page_id || secrets.NOTION_ROOT_PAGE_ID }}
+        run: pnpm notion:export
+
+      - name: Docusaurus build
+        run: pnpm build
+
+      - name: Show pipeline diff vs HEAD
+        if: always()
+        run: |
+          echo "=== git status ==="
+          git status --short
+          echo "=== git diff stat ==="
+          git diff --stat -- docs static/_redirects static/redirect-history.json .canonical-slugs.json static/images/notion || true
+
+      - name: Upload _redirects artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redirects
+          path: |
+            static/_redirects
+            static/redirect-history.json
+            .canonical-slugs.json
+          if-no-files-found: warn
+
+      - name: Upload built site artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build
+          if-no-files-found: error
+          retention-days: 7
