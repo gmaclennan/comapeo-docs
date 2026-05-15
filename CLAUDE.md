@@ -125,6 +125,8 @@ pnpm test scripts/notion-export                          # vitest
 2. Must go through the `notionFetch` pipeline (rate-limited 3 rps, retry on 429/5xx, http-error-aware). Don't call `fetch()` directly.
 3. Validate any path-component page ids via `normalizePageId(id)` first.
 
+**file:// URL resolution.** Notion's Markdown Content API emits `file://<URL-encoded JSON>` for pasted-image page attachments rather than the real S3 URL. The pipeline pre-resolves these in `processImagesInMarkdown` via `resolveFileUrls` → `resolveFileAttachmentUrl` → `fetchBlock(blockId)` → `image.file.url`. Failures fall through to the existing lint-warning branch. Current Notion tree has zero such URLs; the resolver is dormant until editors paste images into the new tree.
+
 ## src/plugins/canonical-slugs/
 
 Build-time URL slug injection wired into Docusaurus via `markdown.parseFrontMatter` in `docusaurus.config.ts`.

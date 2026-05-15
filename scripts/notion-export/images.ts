@@ -15,6 +15,8 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { pipeline, withConcurrency, withRetry } from "fetch-extras";
+import { fetchBlock } from "./fetch.ts";
+import { resolveFileAttachmentUrl } from "./file-attachments.ts";
 import type { Page } from "./walk-tree.ts";
 
 export interface ImageStore {
@@ -62,9 +64,16 @@ export function makeImageStore(): ImageStore {
   return new LocalImageStore("static/images/notion", "/images/notion");
 }
 
-const IMAGE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
+// Markdown image URL matcher. Two alternatives because file:// URLs from
+// Notion contain unescaped `(` and `)` in filenames (e.g. `_a_la(s).png`)
+// — the simple `[^)]+` would truncate mid-URL. file:// URLs always end with
+// the URL-encoded JSON close `%7D`, so we anchor on that.
+const IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D|[^)]+)\)/g;
 
 const HTML_SRC_RE = /<(?:img|video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*\/?>/gi;
+
+// Standalone file:// URL matcher for the pre-resolution pass.
+const FILE_URL_IN_IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D)\)/g;
 
 export type UrlCategory =
   | "notion-hosted"
@@ -182,6 +191,14 @@ export async function processImagesInMarkdown(
     lint: [],
   };
 
+  // Pre-pass: resolve file:// URLs to Notion-hosted S3 URLs via the block
+  // API. If the resolver returns null (malformed, missing block, etc.), the
+  // URL stays as `file://...` and falls through to the lint-warning branch
+  // below — same fallback behaviour as before this pass existed.
+  const resolved = await resolveFileUrls(markdown);
+  markdown = resolved.markdown;
+  work.markdown = markdown;
+
   const allUrls = new Set<string>();
   for (const m of markdown.matchAll(IMAGE_RE)) allUrls.add(m[2]);
   for (const m of markdown.matchAll(HTML_SRC_RE)) allUrls.add(m[1]);
@@ -241,4 +258,46 @@ export async function processImagesInMarkdown(
 
   work.markdown = out;
   return work;
+}
+
+/**
+ * Find every `file://` URL in markdown image syntax and try to resolve each
+ * one to a Notion-hosted S3 URL via the block API. Successful resolutions
+ * are substituted in place; failures leave the original `file://` URL
+ * (which then hits the lint-warning branch in `processImagesInMarkdown`).
+ *
+ * Exported for testing; the orchestrator calls `processImagesInMarkdown`
+ * which uses this internally.
+ */
+export async function resolveFileUrls(
+  markdown: string,
+): Promise<{ markdown: string; resolved: number; unresolved: number }> {
+  const matches = [...markdown.matchAll(FILE_URL_IN_IMAGE_RE)];
+  if (matches.length === 0) {
+    return { markdown, resolved: 0, unresolved: 0 };
+  }
+
+  // De-dupe identical URLs; resolve each once.
+  const resolutions = new Map<string, string | null>();
+  for (const m of matches) {
+    const url = m[2];
+    if (resolutions.has(url)) continue;
+    resolutions.set(url, await resolveFileAttachmentUrl(url, fetchBlock));
+  }
+
+  let resolved = 0;
+  let unresolved = 0;
+  const out = markdown.replace(
+    FILE_URL_IN_IMAGE_RE,
+    (whole, alt: string, url: string) => {
+      const replacement = resolutions.get(url);
+      if (!replacement) {
+        unresolved += 1;
+        return whole;
+      }
+      resolved += 1;
+      return `![${alt}](${replacement})`;
+    },
+  );
+  return { markdown: out, resolved, unresolved };
 }

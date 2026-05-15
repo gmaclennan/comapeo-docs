@@ -76,6 +76,29 @@ export async function fetchPageMeta(pageId: string): Promise<PageMetaResponse> {
   return (await res.json()) as PageMetaResponse;
 }
 
+// Minimal block-response shape — only the fields the file-attachment resolver
+// looks at. Block IDs include dashes (`043c90f2-2b63-...`); we don't normalize
+// because the API accepts both forms.
+export type ImageBlockResponse = {
+  object: "block";
+  id: string;
+  type: "image";
+  image: {
+    type: "file" | "external";
+    file?: { url: string; expiry_time: string };
+    external?: { url: string };
+    caption?: Array<{ plain_text: string }>;
+  };
+};
+
+export async function fetchBlock(
+  blockId: string,
+): Promise<ImageBlockResponse | null> {
+  // Block IDs in file:// URLs have dashes; the API accepts the dashed form.
+  const res = await notionFetch(`/v1/blocks/${blockId}`);
+  return (await res.json()) as ImageBlockResponse;
+}
+
 export function extractTitle(page: PageMetaResponse): string {
   const titleProp = Object.values(page.properties).find(
     (p): p is { type: "title"; title: Array<{ plain_text: string }> } =>
