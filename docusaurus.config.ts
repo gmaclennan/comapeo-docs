@@ -1,253 +1,60 @@
-import fs from "node:fs";
-import path from "node:path";
 import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 import dotenv from "dotenv";
+
 // Remark plugins are added by the canonical-slugs plugin in Sprint C (see plan).
 
-// Load environment variables from .env file
 dotenv.config();
 
-const docsRoot = path.join(__dirname, "docs");
-
-const collectDocRouteInfo = (root: string) => {
-  const explicitSlugs = new Set<string>();
-  const docIds = new Set<string>();
-  const relativePaths = new Set<string>();
-
-  if (!fs.existsSync(root)) {
-    return { explicitSlugs, docIds, relativePaths };
-  }
-
-  const walk = (dir: string) => {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const entryPath = path.join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        walk(entryPath);
-        continue;
-      }
-
-      if (!entry.name.endsWith(".md") && !entry.name.endsWith(".mdx")) {
-        continue;
-      }
-
-      const relativePath = path
-        .relative(root, entryPath)
-        .replace(/\\/g, "/")
-        .replace(/(index)?\.(md|mdx)$/i, "")
-        .replace(/(^\/|\/$)/g, "");
-
-      if (relativePath) {
-        relativePaths.add(relativePath);
-      }
-
-      try {
-        const content = fs.readFileSync(entryPath, "utf8");
-        if (content.startsWith("---")) {
-          const closingIndex = content.indexOf("---", 3);
-          if (closingIndex !== -1) {
-            const frontmatter = content.slice(3, closingIndex);
-            const slugMatch = frontmatter.match(
-              /^slug:\s*["']?(\/?[^"'\n]+)["']?/m
-            );
-            if (slugMatch?.[1]) {
-              const explicit = slugMatch[1].replace(/(^\/|\/$)/g, "").trim();
-              if (explicit) {
-                explicitSlugs.add(explicit);
-              }
-            }
-
-            const idMatch = frontmatter.match(/^id:\s*["']?([^"'\n]+)["']?/m);
-            if (idMatch?.[1]) {
-              const docId = idMatch[1].trim();
-              if (docId) {
-                docIds.add(docId);
-              }
-            } else if (relativePath) {
-              docIds.add(relativePath);
-            }
-          }
-        }
-      } catch (error) {
-        console.warn(
-          `[docusaurus] Unable to read doc frontmatter for ${entryPath}:`,
-          error
-        );
-      }
-    }
-  };
-
-  walk(root);
-  return { explicitSlugs, docIds, relativePaths };
-};
-
-const DOC_ROUTE_INFO = collectDocRouteInfo(docsRoot);
-const ALL_DOC_PATHS = new Set<string>([
-  ...DOC_ROUTE_INFO.explicitSlugs,
-  ...DOC_ROUTE_INFO.docIds,
-]);
-const LOCALIZED_DOC_KEYS_BY_LOCALE = Object.fromEntries(
-  ["pt", "es"].map((locale) => {
-    const localizedRouteInfo = collectDocRouteInfo(
-      path.join(
-        __dirname,
-        "i18n",
-        locale,
-        "docusaurus-plugin-content-docs",
-        "current"
-      )
-    );
-
-    return [
-      locale,
-      Array.from(
-        new Set([
-          ...localizedRouteInfo.docIds,
-          ...localizedRouteInfo.explicitSlugs,
-          ...localizedRouteInfo.relativePaths,
-        ])
-      ).sort(),
-    ];
-  })
-);
-
-const resolveDefaultDocsPage = (
-  value: string | undefined,
-  validSlugs: Set<string>
-): string => {
-  const preferredFallbackCandidates = [
-    "overview",
-    "doc-overview",
-    "introduction",
-    "doc-introduction",
-  ];
-
-  const preferredFallback =
-    preferredFallbackCandidates.find((candidate) =>
-      validSlugs.has(candidate)
-    ) ??
-    Array.from(validSlugs)[0] ??
-    "overview";
-
-  const sanitize = (candidate?: string): string | undefined => {
-    if (!candidate) return undefined;
-    const trimmed = candidate.trim();
-    if (!trimmed) return undefined;
-    if (!/^[a-z0-9\-/]+$/i.test(trimmed)) {
-      console.warn(
-        `[docusaurus] DEFAULT_DOCS_PAGE="${trimmed}" contains invalid characters; ignoring.`
-      );
-      return undefined;
-    }
-    return trimmed.replace(/(^\/|\/$)/g, "");
-  };
-
-  const sanitized = sanitize(value);
-
-  if (sanitized && validSlugs.has(sanitized)) {
-    return sanitized;
-  }
-
-  if (sanitized && !validSlugs.has(sanitized)) {
-    console.warn(
-      `[docusaurus] DEFAULT_DOCS_PAGE="${sanitized}" not found under docs/. Falling back to "${preferredFallback}".`
-    );
-  }
-
-  return preferredFallback;
-};
-
-const DEFAULT_DOCS_PAGE = resolveDefaultDocsPage(
-  process.env.DEFAULT_DOCS_PAGE,
-  ALL_DOC_PATHS
-);
-
-// Determine if this is a production build (for SEO settings)
-// Production allows indexing; staging/preview does not
+// Production allows indexing; staging/preview does not.
 const isProduction = process.env.IS_PRODUCTION === "true";
-
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
   title: "Comapeo Documentation",
   tagline: "Learn how to use the CoMapeo platform",
   favicon: "img/favicon.ico",
 
-  // Opt-in to all upcoming Docusaurus v4 breaking changes so we build for them
-  // from the start instead of retrofitting at the v4 release.
-  // See https://docusaurus.io/blog/releases/3.10
-  //
-  // Enables (per the 3.10 release notes):
-  //   - v4.siteStorageNamespacing — localStorage keys namespaced per site
-  //   - v4.fasterByDefault          — Rspack + SWC + LightningCSS by default
-  //   - v4.mdx1CompatDisabledByDefault — strict modern MDX (no MDX v1 compat)
+  // Opt in to upcoming Docusaurus v4 breaking changes (Rspack + SWC + LightningCSS
+  // by default, strict MDX, namespaced localStorage). See
+  // https://docusaurus.io/blog/releases/3.10.
   future: {
     v4: true,
   },
 
-  // Custom fields to pass environment variables to client-side code
-  customFields: {
-    defaultDocsPage: DEFAULT_DOCS_PAGE,
-    localizedDocKeysByLocale: LOCALIZED_DOC_KEYS_BY_LOCALE,
-  },
-
-  // Set the production url of your site here
   url: "https://docs.comapeo.app",
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: process.env.BASE_URL || "/",
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: "awana-digital", // Usually your GitHub org/user name.
-  projectName: "comapeo-docs", // Usually your repo name.
+  organizationName: "awana-digital",
+  projectName: "comapeo-docs",
 
   onBrokenLinks: "warn",
   markdown: {
     hooks: {
-      // Notion content sometimes has empty ![]() image references from
+      // Notion content occasionally has empty ![]() image references from
       // deleted attachments. Warn rather than fail the build.
       onBrokenMarkdownLinks: "warn",
       onBrokenMarkdownImages: "warn",
     },
   },
 
-  // Prevent search engines from indexing staging/preview builds
-  // Only production (IS_PRODUCTION=true) should be indexed
+  // Prevent search engines from indexing staging/preview builds.
   noIndex: !isProduction,
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: "en",
     locales: ["en", "pt", "es"],
     localeConfigs: {
-      en: {
-        label: "English",
-        htmlLang: "en-US",
-      },
-      pt: {
-        label: "Português",
-        htmlLang: "pt-BR",
-      },
-      es: {
-        label: "Español",
-        htmlLang: "es-ES",
-      },
+      en: { label: "English", htmlLang: "en-US" },
+      pt: { label: "Português", htmlLang: "pt-BR" },
+      es: { label: "Español", htmlLang: "es-ES" },
     },
   },
 
   plugins: [
     // @docusaurus/plugin-client-redirects: removed in Sprint B.
-    // The legacy fallback redirect from /docs → /docs/<DEFAULT_DOCS_PAGE>
-    // referenced a hardcoded slug from the old pipeline. The new architecture
-    // wires its own `_redirects` file via scripts/notion-export/redirects.ts
-    // in Sprint D.
+    // The legacy /docs fallback redirect is gone; Sprint D's pipeline will
+    // emit `static/_redirects` for bare-ID + prior-slug aliases.
     [
       "@docusaurus/plugin-pwa",
       {
@@ -258,28 +65,16 @@ const config: Config = {
           "queryString",
         ],
         pwaHead: [
-          {
-            tagName: "link",
-            rel: "icon",
-            href: "/img/comapeo.png",
-          },
-          {
-            tagName: "link",
-            rel: "manifest",
-            href: "/manifest.json", // your PWA manifest
-          },
-          {
-            tagName: "meta",
-            name: "theme-color",
-            content: "#050F77",
-          },
+          { tagName: "link", rel: "icon", href: "/img/comapeo.png" },
+          { tagName: "link", rel: "manifest", href: "/manifest.json" },
+          { tagName: "meta", name: "theme-color", content: "#050F77" },
         ],
       },
     ],
     // @docusaurus/plugin-ideal-image removed: pulls in `sharp`, whose native
     // install scripts are denied by pnpm-workspace.yaml's supply-chain policy.
-    // Reinstate (with sharp allowed) only after a security review.
   ],
+
   presets: [
     [
       "classic",
@@ -288,21 +83,10 @@ const config: Config = {
           path: "docs",
           sidebarPath: "./src/components/sidebars.ts",
           // remarkPlugins: filled by the canonical-slugs plugin in Sprint C.
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            "https://github.com/digidem/comapeo-docs/tree/main/packages/create-docusaurus/templates/shared/",
-          lastVersion: "current",
-          versions: {
-            current: {
-              label: "Latest",
-            },
-          },
+          // Editing happens in Notion, not GitHub — `editUrl` is omitted so
+          // the "Edit this page" link is not rendered.
         },
-        theme: {
-          customCss: "./src/css/custom.css",
-        },
-        // Enable sitemap for production, disable for staging/preview
+        theme: { customCss: "./src/css/custom.css" },
         sitemap: isProduction
           ? {
               lastmod: "date",
@@ -319,15 +103,12 @@ const config: Config = {
   clientModules: [require.resolve("./src/client/scroll-to-top.ts")],
 
   themeConfig: {
-    // Replace with your project's social card
     image: "img/comapeo-social-card.jpg",
-    // Table of Contents configuration for consistent heading display
     tableOfContents: {
       minHeadingLevel: 2,
       maxHeadingLevel: 3,
     },
     navbar: {
-      // title: 'CoMapeo',
       logo: {
         alt: "CoMapeo",
         src: "img/comapeo_icon.png",
@@ -339,15 +120,7 @@ const config: Config = {
           position: "left",
           label: "Documentation",
         },
-        {
-          type: "docsVersionDropdown",
-          position: "left",
-          dropdownActiveClassDisabled: true,
-        },
-        {
-          type: "localeDropdown",
-          position: "right",
-        },
+        { type: "localeDropdown", position: "right" },
         {
           href: "https://github.com/digidem/comapeo-docs",
           label: "GitHub",
@@ -361,38 +134,26 @@ const config: Config = {
         {
           title: "Awana Digital",
           items: [
-            {
-              label: "Website",
-              href: "https://awana.digital",
-            },
-            {
-              label: "Discord",
-              href: "https://discord.gg/NtZgtAjj",
-            },
+            { label: "Website", href: "https://awana.digital" },
+            { label: "Discord", href: "https://discord.gg/NtZgtAjj" },
             {
               label: "Bluesky",
               href: "https://bsky.app/profile/awana.digital",
             },
-            {
-              label: "Blog",
-              href: "https://awana.digital/blog",
-            },
+            { label: "Blog", href: "https://awana.digital/blog" },
           ],
         },
         {
           title: "CoMapeo",
           items: [
-            {
-              label: "Website",
-              href: "https://comapeo.app",
-            },
+            { label: "Website", href: "https://comapeo.app" },
             {
               label: "CoMapeo Mobile GitHub",
-              href: "https://github.com/digidem/comapeo-docs",
+              href: "https://github.com/digidem/comapeo-mobile",
             },
             {
               label: "CoMapeo Desktop GitHub",
-              href: "https://github.com/digidem/comapeo-docs",
+              href: "https://github.com/digidem/comapeo-desktop",
             },
           ],
         },
