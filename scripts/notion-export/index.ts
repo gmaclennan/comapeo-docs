@@ -6,7 +6,7 @@
 
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import { NOTION_ROOT_PAGE_ID } from "./env.ts";
+import { env } from "./env.ts";
 import { error, log } from "./logger.ts";
 import { walkNotionTree, type Pages } from "./walk-tree.ts";
 import { computePagePaths } from "./paths.ts";
@@ -146,7 +146,7 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
 
 async function main(): Promise<void> {
   const argId = process.argv[2];
-  const rootId = argId ?? NOTION_ROOT_PAGE_ID;
+  const rootId = argId ?? env.notionRootPageId;
   if (!rootId) {
     error(
       "no root page id. Pass one as argv[2] or set NOTION_ROOT_PAGE_ID in .env",

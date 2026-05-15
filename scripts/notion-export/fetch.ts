@@ -6,25 +6,37 @@ import {
   withRateLimit,
   withRetry,
 } from "fetch-extras";
-import { NOTION_API_KEY, NOTION_VERSION } from "./env.ts";
+import { env } from "./env.ts";
 
 const NOTION_RATE_LIMIT_RPS = 3;
 
-const notionFetch = pipeline(
-  fetch,
-  withBaseUrl("https://api.notion.com"),
-  withHeaders({
-    Authorization: `Bearer ${NOTION_API_KEY}`,
-    "Notion-Version": NOTION_VERSION,
-    "Content-Type": "application/json",
-  }),
-  withRateLimit({
-    requestsPerInterval: NOTION_RATE_LIMIT_RPS,
-    interval: 1000,
-  }),
-  withRetry({ retries: 3 }),
-  withHttpError(),
-);
+// Build the pipeline lazily so importing this module doesn't require
+// NOTION_API_KEY. Tests that mock ./fetch.ts via vi.mock() never trigger
+// this; production callers hit it on the first fetch.
+let _notionFetch: ReturnType<typeof buildNotionFetch> | null = null;
+
+function buildNotionFetch() {
+  return pipeline(
+    fetch,
+    withBaseUrl("https://api.notion.com"),
+    withHeaders({
+      Authorization: `Bearer ${env.notionApiKey}`,
+      "Notion-Version": env.notionVersion,
+      "Content-Type": "application/json",
+    }),
+    withRateLimit({
+      requestsPerInterval: NOTION_RATE_LIMIT_RPS,
+      interval: 1000,
+    }),
+    withRetry({ retries: 3 }),
+    withHttpError(),
+  );
+}
+
+function getNotionFetch() {
+  _notionFetch ??= buildNotionFetch();
+  return _notionFetch;
+}
 
 const PAGE_ID_RE = /^[0-9a-f]{32}$/;
 
@@ -48,7 +60,7 @@ export async function fetchPageMarkdown(
   pageId: string,
 ): Promise<PageMarkdownResponse> {
   const id = normalizePageId(pageId);
-  const res = await notionFetch(`/v1/pages/${id}/markdown`);
+  const res = await getNotionFetch()(`/v1/pages/${id}/markdown`);
   return (await res.json()) as PageMarkdownResponse;
 }
 
@@ -72,7 +84,7 @@ export type PageMetaResponse = {
 
 export async function fetchPageMeta(pageId: string): Promise<PageMetaResponse> {
   const id = normalizePageId(pageId);
-  const res = await notionFetch(`/v1/pages/${id}`);
+  const res = await getNotionFetch()(`/v1/pages/${id}`);
   return (await res.json()) as PageMetaResponse;
 }
 
@@ -95,7 +107,7 @@ export async function fetchBlock(
   blockId: string,
 ): Promise<ImageBlockResponse | null> {
   // Block IDs in file:// URLs have dashes; the API accepts the dashed form.
-  const res = await notionFetch(`/v1/blocks/${blockId}`);
+  const res = await getNotionFetch()(`/v1/blocks/${blockId}`);
   return (await res.json()) as ImageBlockResponse;
 }
 

@@ -16,7 +16,7 @@ import {
   fetchPageMeta,
   normalizePageId,
 } from "./fetch.ts";
-import { NOTION_ROOT_PAGE_ID } from "./env.ts";
+import { env } from "./env.ts";
 import { debug, error, log } from "./logger.ts";
 import { extractChildIds, extractMentionIds } from "./parse.ts";
 
@@ -193,7 +193,7 @@ function printTree(pages: Pages, page: Page): void {
 
 async function main(): Promise<void> {
   const argId = process.argv[2];
-  const rootId = argId ?? NOTION_ROOT_PAGE_ID;
+  const rootId = argId ?? env.notionRootPageId;
   if (!rootId) {
     error(
       "no root page id. Pass one as argv[2] or set NOTION_ROOT_PAGE_ID in .env",

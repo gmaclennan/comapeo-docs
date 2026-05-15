@@ -19,7 +19,7 @@ pnpm test scripts/notion-export                          # vitest
 ## Files
 
 ```
-env.ts            env loading (NOTION_API_KEY required, NOTION_ROOT_PAGE_ID + NOTION_VERSION optional)
+env.ts            lazy env getters (NOTION_API_KEY required, NOTION_ROOT_PAGE_ID + NOTION_VERSION optional). Node loads .env via `--env-file-if-exists=.env` in the pnpm scripts; no `dotenv` runtime dep.
 fetch.ts          Notion API client via fetch-extras (rate limit 3 rps, retry 429/5xx)
 parse.ts          pure regex helpers for <page> / <mention-page> tag IDs
 walk-tree.ts      walkNotionTree() returns Map<pageId, Page>; CLI when invoked directly
