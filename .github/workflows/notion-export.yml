@@ -1,8 +1,18 @@
 name: Notion export
 
-# Manual-trigger only for now. Once `staging` / `published` branches and
-# Cloudflare Pages deploys are wired up, add a schedule and a PR-creation
-# step (see tree-publish-plan §7).
+# Sync the Notion page tree into the `staging` branch and open or update
+# a PR `staging → published`. Triggers:
+#
+# - Schedule: every 6 hours
+# - Manual: `gh workflow run notion-export.yml` (optional root_page_id input)
+#
+# Required repo setup (one-time):
+# - Branches `staging` and `published` exist
+# - Branch protection on `published`: require CI + 1 approval
+# - Secrets: NOTION_API_KEY, NOTION_ROOT_PAGE_ID
+# - Cloudflare Pages: `staging` → staging URL, `published` → production
+#
+# See tree-publish-plan §7 for the full design.
 
 on:
   workflow_dispatch:
@@ -11,6 +21,9 @@ on:
         description: "Notion root page id (32 hex, no dashes). Defaults to repo secret NOTION_ROOT_PAGE_ID."
         required: false
         type: string
+  schedule:
+    # Every 6 hours at minute 17 (off-peak; deliberately not on the hour).
+    - cron: "17 */6 * * *"
 
 concurrency:
   group: notion-export
@@ -20,10 +33,16 @@ jobs:
   export:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write       # commit and push to staging
+      pull-requests: write  # open / update the staging → published PR
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout staging
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+          # Use the default GITHUB_TOKEN; permissions above grant push.
 
       - uses: pnpm/action-setup@v4
         with:
@@ -42,18 +61,57 @@ jobs:
           NOTION_ROOT_PAGE_ID: ${{ inputs.root_page_id || secrets.NOTION_ROOT_PAGE_ID }}
         run: pnpm notion:export
 
-      - name: Docusaurus build
+      - name: Docusaurus build (verify output is buildable)
         run: pnpm build
 
-      - name: Show pipeline diff vs HEAD
-        if: always()
+      - name: Detect pipeline changes
+        id: diff
         run: |
-          echo "=== git status ==="
-          git status --short
-          echo "=== git diff stat ==="
-          git diff --stat -- docs static/_redirects static/redirect-history.json .canonical-slugs.json static/images/notion || true
+          git add -A docs static/_redirects static/redirect-history.json .canonical-slugs.json static/images/notion
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No pipeline changes."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "=== git diff --cached --stat ==="
+            git diff --cached --stat
+          fi
 
-      - name: Upload _redirects artifact
+      - name: Commit and push to staging
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "chore(notion): sync $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin staging
+
+      - name: Open or update PR staging → published
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # If a PR is already open from staging → published, the next push
+          # has already updated it (GitHub auto-rebuilds the diff). Only
+          # create a new PR when none exists.
+          existing=$(gh pr list --base published --head staging --state open --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh pr create \
+              --base published \
+              --head staging \
+              --title "Promote Notion sync to published" \
+              --body "Automated sync from the Notion page tree.
+
+          See \`.github/workflows/notion-export.yml\` and the pipeline in \`scripts/notion-export/\`.
+          Plan: \`.claude/skills/notion-markdown-export/tree-publish-plan.md\` §7.
+
+          Generated $(date -u +%Y-%m-%dT%H:%MZ)."
+          else
+            echo "PR #$existing already open; staging push updates it automatically."
+          fi
+
+      - name: Upload _redirects + manifest artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:

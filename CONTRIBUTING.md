@@ -97,8 +97,9 @@ pnpm lint             # eslint src
 ### Pipeline commands
 
 ```bash
-pnpm notion:walk      # smoke-test the Notion connection; prints the tree
-pnpm notion:export    # full pipeline → writes docs/, images, redirects
+pnpm notion:walk             # smoke-test the Notion connection; prints the tree
+pnpm notion:export           # full pipeline → writes docs/, images, redirects
+pnpm notion:export:dry-run   # preview the diff without writing docs/redirects/manifest
 ```
 
 The pipeline is idempotent: rerunning it with no Notion changes produces
@@ -112,6 +113,12 @@ zero git diff.
 - `src/plugins/canonical-slugs/` — Docusaurus hook that injects `slug:`
   per page from the manifest the pipeline emits
 - `legacy/` — old architecture, reference-only — **do not import or imitate**
+
+### Ops setup
+
+The two-branch publish workflow (Cloudflare Pages, branch protection,
+secrets) is documented in [`RUNBOOK.md`](RUNBOOK.md). One-time setup
+only; day-to-day contributors don't need it.
 
 ### Plans
 
