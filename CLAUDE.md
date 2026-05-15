@@ -115,6 +115,33 @@ Adding a fetch call:
 2. It must go through the `notionFetch` pipeline (rate-limited, retried, http-error-aware) — don't reach for `fetch()` directly
 3. Validate any path-component page IDs via `normalizePageId(id)` first
 
+## scripts/notion-export/ writes the docs tree (Sprint B onwards)
+
+```bash
+pnpm notion:export                                       # full pipeline against the page tree
+```
+
+The pipeline:
+
+1. Walks the page tree via the Markdown API
+2. Transforms each page's markdown: strip empty/unsupported tags (`<empty-block/>`, `<table_of_contents/>`, `<unknown/>`), unwrap metadata tags (`<synced_block>`, `<span discussion-urls>`), rewrite `<page>` / `<mention-page>` references to `[title](<pageId>.md)`, convert `<callout>`s to Docusaurus admonitions, normalize inline math, self-close HTML void elements (`<br>`, `<hr>`, `<col>`, etc.), strip `![]()` empty image refs
+3. Downloads Notion-hosted images via the `ImageStore` interface; replaces URLs with `/images/notion/<sha256-12>.<ext>`; warns on `file://` and bare-filename URLs in the lint report
+4. Computes desired filesystem path per page (section dirs slugified from EN title; filename = `<pageId>.md`)
+5. Diffs against existing files: writes new content, moves on tree-reshape, deletes for archived pages, preserves files for 🚧 pages still in tree
+6. Writes one `_category_.json` per section directory; section landing falls back to `generated-index` when the section page itself is 🚧
+
+**Idempotency:** running the pipeline twice without Notion changes produces zero git diff. Files with unchanged content are not rewritten (preserves mtime).
+
+**Frontmatter:** minimal — only `id: <pageId>` and `title: "..."`. Sprint C's canonical-slug plugin will inject `slug:` at build time.
+
+**Per-directory `package.json`:** `scripts/notion-export/package.json` sets `"type": "module"` so the pipeline runs as ESM under Node's native TS execution. The repo root stays CJS because Docusaurus 3.10's SSR server bundle needs webpack's CJS `require` runtime.
+
+Pipeline conventions:
+
+- All file I/O goes through `write-files.ts` (`globExistingFiles` + `planActions` + `applyActions`). Don't fan out `fs.writeFile` calls from elsewhere.
+- All images go through `processImagesInMarkdown` in `images.ts`. Don't fetch image URLs directly.
+- Transforms are pure functions of markdown → markdown. The orchestrator in `index.ts` is the only place that sequences I/O.
+
 ## When in doubt
 
 Read the relevant plan doc. Quote from it. If the plan and existing code conflict, the plan wins — file an issue or propose an update.

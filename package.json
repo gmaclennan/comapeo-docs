@@ -3,7 +3,6 @@
   "version": "0.2.0-alpha",
   "private": true,
   "license": "MIT",
-  "type": "module",
   "scripts": {
     "docusaurus": "docusaurus",
     "dev": "docusaurus start",

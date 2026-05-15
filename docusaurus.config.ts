@@ -195,6 +195,14 @@ const config: Config = {
   projectName: "comapeo-docs", // Usually your repo name.
 
   onBrokenLinks: "warn",
+  markdown: {
+    hooks: {
+      // Notion content sometimes has empty ![]() image references from
+      // deleted attachments. Warn rather than fail the build.
+      onBrokenMarkdownLinks: "warn",
+      onBrokenMarkdownImages: "warn",
+    },
+  },
 
   // Prevent search engines from indexing staging/preview builds
   // Only production (IS_PRODUCTION=true) should be indexed
@@ -222,25 +230,12 @@ const config: Config = {
     },
   },
 
-  markdown: {
-    hooks: {
-      onBrokenMarkdownLinks: "warn",
-    },
-  },
-
   plugins: [
-    [
-      "@docusaurus/plugin-client-redirects",
-      {
-        redirects: [
-          // Redirect `/docs` and `/docs/` to default docs page (configurable via DEFAULT_DOCS_PAGE env var)
-          {
-            to: `/docs/${DEFAULT_DOCS_PAGE}`,
-            from: "/docs",
-          },
-        ],
-      },
-    ],
+    // @docusaurus/plugin-client-redirects: removed in Sprint B.
+    // The legacy fallback redirect from /docs → /docs/<DEFAULT_DOCS_PAGE>
+    // referenced a hardcoded slug from the old pipeline. The new architecture
+    // wires its own `_redirects` file via scripts/notion-export/redirects.ts
+    // in Sprint D.
     [
       "@docusaurus/plugin-pwa",
       {
