@@ -14,14 +14,17 @@ import type { Manifest } from "../../../scripts/notion-export/manifest.ts";
 const MAX_SLUG_LEN = 60;
 
 function slugSegment(title: string): string {
-  if (!title) return "untitled";
-  const out = slugify(title, { lowercase: true });
-  return out.length > MAX_SLUG_LEN ? out.slice(0, MAX_SLUG_LEN) : out;
+  const slug = slugify(title ?? "", { lowercase: true });
+  if (!slug) return "untitled";
+  if (slug.length <= MAX_SLUG_LEN) return slug;
+  // Truncate, then strip any trailing hyphens so we don't get `foo--<pageId>`.
+  const truncated = slug.slice(0, MAX_SLUG_LEN).replace(/-+$/, "");
+  return truncated || "untitled";
 }
 
 export type SlugInput = {
   pageId: string;
-  /** Tree structure + isRoot flags. */
+  /** Full manifest emitted by the pipeline. */
   manifest: Manifest;
   /** Per-locale titles. Falls back to `manifest.pages[id].title` if missing. */
   titlesByPageId: Map<string, string>;

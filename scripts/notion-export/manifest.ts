@@ -1,10 +1,10 @@
 // Emit `.canonical-slugs.json` at repo root after a successful sync.
 //
-// The canonical-slug Docusaurus plugin reads this manifest at build time to
-// compute per-locale URLs (`/<section-slug>-<sectionId>/.../<page-slug>-<pageId>`).
-// The pipeline writes structural data + EN titles; for non-EN locales the
-// plugin overrides titles by reading `i18n/<locale>/...` files at build time
-// (stubbed in Sprint C; wired in Phase 4.5 with Weblate).
+// The canonical-slug Docusaurus hook reads this manifest at build time to
+// compute per-page URLs (`/<section-slug>-<sectionId>/.../<page-slug>-<pageId>`).
+// The pipeline writes structural data + EN titles. For Sprint C, the EN
+// titles are used as ancestor labels in every locale; Phase 4.5 will extend
+// the hook to read per-locale title overrides from `i18n/<locale>/...` files.
 
 import { writeFile } from "node:fs/promises";
 import type { Pages } from "./walk-tree.ts";

@@ -85,9 +85,9 @@ const config: Config = {
         docs: {
           path: "docs",
           sidebarPath: "./src/components/sidebars.ts",
-          // remarkPlugins: filled by the canonical-slugs plugin in Sprint C.
           // Editing happens in Notion, not GitHub — `editUrl` is omitted so
-          // the "Edit this page" link is not rendered.
+          // the "Edit this page" link is not rendered. Slugs are injected
+          // by the canonical-slug hook (markdown.parseFrontMatter above).
         },
         theme: { customCss: "./src/css/custom.css" },
         sitemap: isProduction

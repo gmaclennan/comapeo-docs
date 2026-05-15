@@ -114,6 +114,26 @@ describe("computeSlug", () => {
     );
   });
 
+  it("falls back to 'untitled' when slugify reduces title to empty (emoji/symbols)", () => {
+    const overrides = new Map<string, string>([[ARTICLE, "🚀✨"]]);
+    expect(slug(ARTICLE, overrides)).toBe(
+      `/getting-started-${SECTION}/untitled-${ARTICLE}`,
+    );
+    expect(slug(ARTICLE, new Map([[ARTICLE, "---"]]))).toBe(
+      `/getting-started-${SECTION}/untitled-${ARTICLE}`,
+    );
+  });
+
+  it("strips trailing hyphens after 60-char truncation", () => {
+    // 60th char lands at a hyphen position → without the strip we'd get `foo--<pageId>`.
+    const title = "word ".repeat(40); // produces "word-word-word-..." after slugify
+    const result = slug(ARTICLE, new Map([[ARTICLE, title]]));
+    const lastSeg = result.split("/").at(-1)!;
+    const [prefix] = lastSeg.split(/-(?=[0-9a-f]{32}$)/);
+    expect(prefix.endsWith("-")).toBe(false);
+    expect(prefix.length).toBeLessThanOrEqual(60);
+  });
+
   it("throws for unknown pageId", () => {
     expect(() => slug("ffffffffffffffffffffffffffffffff")).toThrow(
       /not in manifest/,
