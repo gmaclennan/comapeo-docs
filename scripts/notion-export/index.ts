@@ -19,16 +19,31 @@ import {
 import { renderPageFile } from "./frontmatter.ts";
 import { syncFilesystem } from "./write-files.ts";
 import { writeCategoryConfig } from "./category-json.ts";
-import { writeManifest } from "./manifest.ts";
+import { buildManifest, writeManifest } from "./manifest.ts";
+import {
+  buildRedirects,
+  writeRedirectsFile,
+} from "./redirects.ts";
+import {
+  readHistory,
+  writeHistory,
+  type RedirectHistory,
+} from "./redirect-history.ts";
+import { validateCrossPageLinks } from "./validate.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 const DOCS_DIR = join(REPO_ROOT, "docs");
 const MANIFEST_PATH = join(REPO_ROOT, ".canonical-slugs.json");
+const STATIC_DIR = join(REPO_ROOT, "static");
+const REDIRECTS_PATH = join(STATIC_DIR, "_redirects");
+const HISTORY_PATH = join(STATIC_DIR, "redirect-history.json");
 
 export type ExportOptions = {
   rootId: string;
   docsDir: string;
   manifestPath: string;
+  redirectsPath: string;
+  historyPath: string;
   imageStore: ImageStore;
 };
 
@@ -103,9 +118,25 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
   const categories = await writeCategoryConfig(pages, {
     docsDir: options.docsDir,
   });
-  await writeManifest(pages, { manifestPath: options.manifestPath });
+
+  // Manifest first, then redirects (which read from it).
+  const manifest = buildManifest(pages);
+  await writeManifest(manifest, { manifestPath: options.manifestPath });
+  const history: RedirectHistory = await readHistory(options.historyPath);
+  const redirects = buildRedirects(manifest, history);
+  await writeHistory(history, options.historyPath);
+  await writeRedirectsFile(redirects, options.redirectsPath);
+
+  // Fail-soft link validation: warn per broken cross-page link.
+  const brokenLinks = validateCrossPageLinks(pages);
+  for (const b of brokenLinks) {
+    log(
+      `broken link: "${b.sourceTitle}" → ${b.targetPageId} (${b.reason})`,
+    );
+  }
+
   log(
-    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; wrote ${categories} _category_.json + manifest`,
+    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; ${categories} _category_.json, ${redirects.length} redirects, ${brokenLinks.length} broken links`,
   );
 
   return pages;
@@ -127,6 +158,8 @@ async function main(): Promise<void> {
     rootId,
     docsDir: DOCS_DIR,
     manifestPath: MANIFEST_PATH,
+    redirectsPath: REDIRECTS_PATH,
+    historyPath: HISTORY_PATH,
     imageStore: makeImageStore(),
   });
   log("Done.");

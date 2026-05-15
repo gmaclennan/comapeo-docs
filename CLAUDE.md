@@ -139,9 +139,24 @@ src/plugins/canonical-slugs/
 
 The pipeline writes `.canonical-slugs.json` at repo root with each page's structural metadata. The hook reads it once at build time and computes URLs of the form `/<a1-slug>-<a1-id>/.../<this-slug>-<this-id>`.
 
+`compute-slug.ts` lives in `scripts/notion-export/` (the pipeline owns slug computation since it's also needed for redirects). The plugin imports `computeSlug` from there. Pure function, no I/O, safe across the boundary.
+
 Phase 4.5 will extend the hook to read per-locale titles for the ancestor chain. Today the manifest's EN titles are used as ancestor labels in every locale.
 
-If the manifest is missing (fresh checkout before first `pnpm notion:export`), the hook silently skips slug injection so `pnpm dev` still boots.
+If the manifest is missing (fresh checkout before first `pnpm notion:export`), the hook warns once and skips slug injection so `pnpm dev` still boots.
+
+## Redirects (Sprint D onwards)
+
+The pipeline emits `static/_redirects` (Cloudflare Pages format) and `static/redirect-history.json` after the manifest.
+
+Three alias classes:
+- **Bare-ID** — `/<locale>/docs/<pageId>` → current canonical URL. Always emitted for every non-root page in every locale.
+- **Prior-slug** — when a page's slug changes between runs, the old URL → new URL. Tracked across runs via the append-only history file.
+- **Move** — section renames cascade slug changes for descendants; those are captured by the prior-slug mechanism above.
+
+`redirect-history.json` is committed: it accumulates every prior slug per pageId per locale. Format is `{ pageId: { en: [...prefixes], es: [...], pt: [...] } }`. Each list is chronological; the last entry is the current canonical prefix.
+
+After redirects, the pipeline runs a fail-soft cross-page link validator that warns when a `[text](<pageId>.md)` reference points at a page not in the tree or not yet ready.
 
 ## When in doubt
 

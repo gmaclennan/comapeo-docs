@@ -15,7 +15,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ParseFrontMatter } from "@docusaurus/types";
 import type { Manifest } from "../../../scripts/notion-export/manifest.ts";
-import { computeSlug } from "./compute-slug.ts";
+import { computeSlug } from "../../../scripts/notion-export/compute-slug.ts";
 
 // File-anchor the manifest path so `docusaurus build` from a subdir (or any
 // other tool wrapping Docusaurus with a non-repo-root cwd) finds it.

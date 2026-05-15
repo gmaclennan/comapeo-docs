@@ -58,10 +58,9 @@ export function buildManifest(pages: Pages): Manifest {
 }
 
 export async function writeManifest(
-  pages: Pages,
+  manifest: Manifest,
   options: WriteManifestOptions,
 ): Promise<void> {
-  const manifest = buildManifest(pages);
   await writeFile(
     options.manifestPath,
     JSON.stringify(manifest, null, 2) + "\n",

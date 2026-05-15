@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeSlug } from "./compute-slug.ts";
-import type { Manifest } from "../../../scripts/notion-export/manifest.ts";
+import type { Manifest } from "./manifest.ts";
 
 const ROOT = "00000000000000000000000000000000";
 const SECTION = "11111111111111111111111111111111";

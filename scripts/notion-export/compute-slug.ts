@@ -9,7 +9,7 @@
 // PageIds are stable across locales; only slug prefixes translate.
 
 import slugify from "@sindresorhus/slugify";
-import type { Manifest } from "../../../scripts/notion-export/manifest.ts";
+import type { Manifest } from "./manifest.ts";
 
 const MAX_SLUG_LEN = 60;
 
