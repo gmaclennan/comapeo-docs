@@ -3,10 +3,24 @@
   "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": {
-      "@/*": ["scripts/*"]
-    },
-    "types": ["bun-types"]
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
-  "exclude": [".docusaurus", "build", "scripts/eval"]
+  "include": [
+    "src/**/*",
+    "scripts/**/*",
+    "docusaurus.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    ".docusaurus",
+    "build",
+    "legacy",
+    "node_modules",
+    "spike"
+  ]
 }

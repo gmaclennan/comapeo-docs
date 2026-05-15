@@ -1,31 +1,22 @@
 import { defineConfig } from "vitest/config";
-import path from "path";
 
 export default defineConfig({
   test: {
-    // Test file patterns
     include: [
       "scripts/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
-      "api-server/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+      "src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+      "spike/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
     ],
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
       "**/build/**",
       "**/.{idea,git,cache,output,temp}/**",
-      // HTTP integration tests require Bun runtime (bun:test), run with: bun test
-      "**/http-integration.test.ts",
+      "legacy/**",
     ],
-
-    // Environment configuration
     environment: "node",
     globals: true,
     pool: "threads",
-    fileParallelism: false,
-    // Setup files for global mocking
-    setupFiles: ["./scripts/vitest.setup.ts"],
-
-    // Coverage configuration
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],
@@ -36,41 +27,10 @@ export default defineConfig({
         "**/node_modules/**",
         "**/*.d.ts",
         "**/*.config.*",
-        "**/test-scaffold/**",
+        "legacy/**",
       ],
-      thresholds: {
-        global: {
-          branches: 85,
-          functions: 85,
-          lines: 85,
-          statements: 85,
-        },
-      },
     },
-
-    // Test timeout configuration
     testTimeout: 10000,
     hookTimeout: 10000,
-
-    // Reporter configuration
-    reporters: ["verbose", "json", "html"],
-    outputFile: {
-      json: "./test-results.json",
-      html: "./test-results.html",
-    },
-
-    // Mock configuration
-    clearMocks: true,
-    restoreMocks: true,
-
-    // Retry configuration for flaky tests
-    retry: 2,
-  },
-
-  // Path resolution
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./scripts"),
-    },
   },
 });

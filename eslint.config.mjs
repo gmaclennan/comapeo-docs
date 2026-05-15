@@ -11,6 +11,17 @@ import prettierConfig from "eslint-config-prettier";
 
 /** @type {import('eslint').Linter.FlatConfig[]} */
 const eslintConfig = [
+  // Legacy directory: ignored entirely.
+  {
+    ignores: [
+      "legacy/**",
+      "node_modules/**",
+      ".docusaurus/**",
+      "build/**",
+      "coverage/**",
+    ],
+  },
+
   // Global configurations for all files
   {
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"],
@@ -29,10 +40,9 @@ const eslintConfig = [
     },
   },
 
-  // Docusaurus specific configurations
+  // Docusaurus configurations (src/ only)
   {
-    files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"],
-    ignores: ["scripts/**", "api-server/**"], // Ignore scripts and api-server directories for docusaurus rules
+    files: ["src/**/*.{js,mjs,cjs,ts,jsx,tsx}"],
     plugins: {
       "@docusaurus": docusaurusPlugin,
       react: pluginReact,
@@ -72,9 +82,9 @@ const eslintConfig = [
     },
   },
 
-  // Scripts and API server specific configurations
+  // Pipeline scripts (scripts/) and spike (spike/) get import/promise/security rules
   {
-    files: ["scripts/**/*.{js,mjs,cjs,ts}", "api-server/**/*.{js,mjs,cjs,ts}"],
+    files: ["scripts/**/*.{js,mjs,cjs,ts}", "spike/**/*.{js,mjs,cjs,ts}"],
     plugins: {
       import: importPlugin,
       promise: promisePlugin,
@@ -85,33 +95,13 @@ const eslintConfig = [
         typescript: true,
         node: true,
       },
-      "import/core-modules": ["bun", "bun:test"],
     },
     rules: {
       ...importPlugin.configs.recommended.rules,
       ...promisePlugin.configs.recommended.rules,
       ...securityPlugin.configs.recommended.rules,
-      // Test utilities intentionally use dynamic file paths
+      // Pipeline tooling intentionally uses dynamic file paths
       "security/detect-non-literal-fs-filename": "off",
-    },
-  },
-
-  // Notion API/translate scripts use controlled dynamic property access (not user input)
-  {
-    files: [
-      "scripts/notion-fetch/generateBlocks.ts",
-      "scripts/notion-translate/**/*.ts",
-    ],
-    rules: {
-      "security/detect-object-injection": "off",
-    },
-  },
-
-  // content-repo.ts uses const whitelist for env keys
-  {
-    files: ["api-server/content-repo.ts"],
-    rules: {
-      "security/detect-object-injection": "off",
     },
   },
 ];

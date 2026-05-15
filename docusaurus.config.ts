@@ -4,7 +4,7 @@ import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 import dotenv from "dotenv";
-import remarkFixImagePaths from "./scripts/remark-fix-image-paths";
+// Remark plugins are added by the canonical-slugs plugin in Sprint C (see plan).
 
 // Load environment variables from .env file
 dotenv.config();
@@ -287,7 +287,7 @@ const config: Config = {
         docs: {
           path: "docs",
           sidebarPath: "./src/components/sidebars.ts",
-          remarkPlugins: [remarkFixImagePaths],
+          // remarkPlugins: filled by the canonical-slugs plugin in Sprint C.
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:

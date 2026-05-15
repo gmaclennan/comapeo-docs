@@ -24,11 +24,11 @@ yarn-error.log*
 
 # Custom
 .env
-CLAUDE.md
 test-results.json
 test-results.html
 test-results/
 coverage/
+lint-report.md
 
 # Image processing files
 image-cache.json
@@ -55,14 +55,10 @@ favicon.svg
 /assets/
 assets/
 
-# Generated content (synced from content branch)
-# These directories are populated by checking out from the content branch
-/docs/
-/i18n/
-/static/images/
-
-# Generated robots.txt (created at build time based on IS_PRODUCTION env var)
-/static/robots.txt
+# NOTE (Phase 2 architecture, 2026-05): docs/, i18n/, and static/images/
+# are now COMMITTED. The new Notion export pipeline (scripts/notion-export/)
+# writes Markdown into docs/, and Weblate writes translations into i18n/.
+# Both are tracked artifacts, not gitignored.
 
 # Keep .gitkeep files for directory structure
 !.gitkeep
