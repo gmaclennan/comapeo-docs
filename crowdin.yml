@@ -1,0 +1,45 @@
+# Crowdin configuration for CoMapeo Docs.
+#
+# Active translation platform. See
+# .claude/skills/notion-markdown-export/translations-decision.md §6 for
+# rationale and the full setup walkthrough.
+#
+# Replace project_id below with the value Crowdin assigns once the
+# Open Source application is approved.
+
+project_id: "REPLACE_AFTER_OSS_APPROVAL"
+api_token_env: CROWDIN_PERSONAL_TOKEN
+base_path: .
+base_url: https://api.crowdin.com
+preserve_hierarchy: true
+
+files:
+  # Documentation Markdown — written by the Notion export pipeline into
+  # docs/<section>/<pageId>.md. Crowdin reads the file, segments by
+  # block, and writes the translated copy to i18n/<locale>/.../<pageId>.md.
+  - source: /docs/**/*.md
+    translation: /i18n/%two_letters_code%/docusaurus-plugin-content-docs/current/**/%original_file_name%
+    type: md
+    parser_version: 6
+    # Defense in depth: the pipeline already emits only `title:` (and
+    # optionally `description:`); this catches any accidental additions.
+    excluded_front_matter_elements:
+      - id
+      - slug
+      - sidebar_position
+      - last_update
+    # Fenced code blocks stay verbatim — never exposed as translation segments.
+    excludedCodeBlocks: true
+    # When the EN source changes, translations become "unapproved" (forced
+    # re-review) rather than reset to untranslated. Preserves work.
+    update_option: update_as_unapproved
+
+  # Docusaurus UI strings (navbar, footer, theme components).
+  - source: /i18n/en/code.json
+    translation: /i18n/%two_letters_code%/code.json
+    type: chrome
+
+# When extending to Indigenous-language variants (qu-PE, ay-BO, etc.):
+# switch `%two_letters_code%` above to `%locale%` and map locales
+# explicitly in Project Settings → Languages → Custom Mapping in the
+# Crowdin UI. See translations-decision.md §11.

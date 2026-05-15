@@ -86,6 +86,7 @@ target or remove the link.
 
 ```bash
 pnpm install
+pnpm run prepare      # one-time: install the pre-commit hook (.githooks/pre-commit)
 pnpm dev              # Docusaurus dev server
 pnpm build            # static site → build/
 pnpm serve            # serve the built site
@@ -137,10 +138,17 @@ rather than silently diverging.
 
 ## Translations
 
-Not yet wired up. Phase 4.5 will integrate Crowdin against the
-`published` branch; see `.claude/skills/notion-markdown-export/translations-decision.md`.
-Translators will edit titles + body segments in Crowdin's web editor; the
+Phase 4.5 will integrate **Crowdin** against the `published` branch; see
+`.claude/skills/notion-markdown-export/translations-decision.md`.
+Translators edit titles + body segments in Crowdin's web editor; the
 URL for each locale is computed at build time from the translated title.
+
+The prep files are already in the repo (inert until Crowdin is wired):
+
+- `crowdin.yml` — config; `project_id` set to a placeholder until OSS approval lands
+- `.github/workflows/translation-pr.yml` — CI gate for PRs touching `i18n/**`
+- `.githooks/pre-commit` — blocks direct edits to `i18n/<locale>/.../*.md`
+- `glossary/comapeo-docs.csv` — starter glossary (product terms; expand as needed)
 
 ## Pull requests
 

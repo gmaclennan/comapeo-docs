@@ -24,7 +24,8 @@
     "test": "vitest run --pool=threads",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage --pool=threads",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@docusaurus/core": "^3.10.1",

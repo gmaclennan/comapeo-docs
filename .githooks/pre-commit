@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Block manual commits to translated Markdown files.
+#
+# Crowdin is the source of truth for i18n/<locale>/.../*.md. Direct
+# edits in Git get silently dropped on the next Crowdin pull because
+# Crowdin doesn't reverse-import. Block them before they happen.
+#
+# To bypass for legitimate reasons (e.g. fixing a Crowdin sync issue
+# manually), run: git commit --no-verify
+#
+# Set up: this hook runs automatically after `pnpm install` (the
+# `prepare` script in package.json points core.hooksPath here).
+#
+# See .claude/skills/notion-markdown-export/translations-decision.md §13.
+
+set -e
+
+# Look only at translated Markdown files under i18n/<locale>/.../current/.
+# i18n/<locale>/code.json is handled separately (Crowdin manages it) but
+# also OK to edit by hand when the Docusaurus theme changes.
+violations=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '^i18n/[^/]+/docusaurus-plugin-content-docs/current/.+\.md$' \
+  || true)
+
+if [ -z "$violations" ]; then
+  exit 0
+fi
+
+cat <<EOF >&2
+Direct edits to translated Markdown files are not allowed:
+
+$(echo "$violations" | sed 's/^/  /')
+
+Translations are managed in Crowdin (Phase 4.5 — see
+.claude/skills/notion-markdown-export/translations-decision.md).
+Edit the source EN file in Notion + Crowdin web UI, or run
+\`git commit --no-verify\` if you genuinely need to bypass.
+EOF
+exit 1

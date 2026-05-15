@@ -1,0 +1,9 @@
+term_en,part_of_speech,definition,note,term_es,term_pt
+CoMapeo,proper noun,The map-making application,Always capitalised; do not translate,CoMapeo,CoMapeo
+CoMapeo Mobile,proper noun,The Android/iOS version of CoMapeo,Always capitalised; do not translate,CoMapeo Mobile,CoMapeo Mobile
+CoMapeo Desktop,proper noun,The desktop companion to CoMapeo Mobile,Always capitalised; do not translate,CoMapeo Desktop,CoMapeo Desktop
+observation,noun,A geographically-located data point recorded in the app,,observación,observação
+track,noun,A recorded path / GPS trace,,trayecto,trajeto
+project,noun,A shared workspace for a mapping team,,proyecto,projeto
+device,noun,A phone or tablet running CoMapeo Mobile,,dispositivo,dispositivo
+sync server,noun,Optional server that stores project data for offline syncing,Two words; not "syncserver",servidor de sincronización,servidor de sincronização
