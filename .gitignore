@@ -30,6 +30,9 @@ test-results/
 coverage/
 lint-report.md
 
+# Override global gitignore: CLAUDE.md is project-shared agent guidance for this repo.
+!CLAUDE.md
+
 # Image processing files
 image-cache.json
 image-failures.json
