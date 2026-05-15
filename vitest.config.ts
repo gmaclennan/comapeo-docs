@@ -5,7 +5,6 @@ export default defineConfig({
     include: [
       "scripts/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
       "src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
-      "spike/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
     ],
     exclude: [
       "**/node_modules/**",
@@ -13,6 +12,7 @@ export default defineConfig({
       "**/build/**",
       "**/.{idea,git,cache,output,temp}/**",
       "legacy/**",
+      "spike/**",
     ],
     environment: "node",
     globals: true,

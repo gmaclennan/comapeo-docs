@@ -1,10 +1,9 @@
 /**
- * Client module to add scroll-to-top functionality for active navigation elements.
- * Handles both breadcrumbs and sidebar active items.
+ * Client module: scroll to top when an active breadcrumb or sidebar item is
+ * clicked (Docusaurus default behaviour keeps you scrolled to wherever the
+ * page jumped to).
  *
  * @see https://docusaurus.io/docs/advanced/client#client-module-lifecycles
- *
- * Test change for Docker workflow verification.
  */
 
 import type { ClientModule } from "@docusaurus/types";

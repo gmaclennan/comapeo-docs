@@ -17,6 +17,9 @@ const NOTION_PAGE_ID_RE = /([0-9a-f]{32})/i;
 
 // === Callouts ============================================================
 
+// Per transforms-plan §3: callout type is signalled by (in priority order)
+// the icon attribute, the color attribute, then the body's leading emoji.
+
 const EMOJI_TO_TYPE: Array<[RegExp, string]> = [
   [/^(💡|🟢|✅)/u, "tip"],
   [/^(⚠️|🟡|🟠)/u, "warning"],
@@ -28,12 +31,59 @@ const EMOJI_TO_TYPE: Array<[RegExp, string]> = [
 const LEADING_EMOJI_RE =
   /^[\p{Emoji_Presentation}\p{Extended_Pictographic}️]+\s*/u;
 
-function detectCalloutType(content: string): string {
-  const trimmed = content.trimStart();
+function matchEmojiType(text: string): string | undefined {
   for (const [re, type] of EMOJI_TO_TYPE) {
-    if (re.test(trimmed)) return type;
+    if (re.test(text)) return type;
   }
-  return "note";
+  return undefined;
+}
+
+/** Notion callout `icon` attribute → admonition type. Only matches emoji icons; returns undefined for `external:` or `custom:` icons. */
+function iconToType(icon: string | null): string | undefined {
+  if (!icon) return undefined;
+  return matchEmojiType(icon);
+}
+
+/** Notion callout `color` attribute → admonition type. */
+function colorToType(color: string | null): string | undefined {
+  if (!color) return undefined;
+  const normalized = color.replace(/_(bg|background)$/, "").toLowerCase();
+  switch (normalized) {
+    case "gray":
+      return "note";
+    case "blue":
+      return "info";
+    case "yellow":
+      return "warning";
+    case "red":
+      return "danger";
+    case "green":
+      return "tip";
+    case "orange":
+      return "caution";
+    default:
+      return undefined;
+  }
+}
+
+/** Body's leading emoji (a Notion editorial convention) → admonition type. */
+function bodyToType(body: string): string | undefined {
+  return matchEmojiType(body.trimStart());
+}
+
+type CalloutSignals = {
+  icon: string | null;
+  color: string | null;
+  body: string;
+};
+
+function detectCalloutType(signals: CalloutSignals): string {
+  return (
+    iconToType(signals.icon) ??
+    colorToType(signals.color) ??
+    bodyToType(signals.body) ??
+    "note"
+  );
 }
 
 function stripLeadingEmoji(content: string): string {
@@ -96,16 +146,16 @@ function applyHtmlTransforms(
   // Convert callouts to Docusaurus admonitions, innermost first. The
   // depth-descending order ensures inner callouts are already replaced by
   // admonition text by the time we process their outer wrapper.
-  //
-  // Type detection prefers the `icon` attribute (Notion's signal), then
-  // falls back to a leading emoji in the body, then to `note`.
   const callouts = root
     .querySelectorAll("callout")
     .sort((a, b) => depthOf(b) - depthOf(a));
   for (const el of callouts) {
     const raw = el.innerHTML;
-    const icon = el.getAttribute("icon") ?? "";
-    const type = detectCalloutType(`${icon} ${raw}`);
+    const type = detectCalloutType({
+      icon: el.getAttribute("icon") ?? null,
+      color: el.getAttribute("color") ?? null,
+      body: raw,
+    });
     const body = stripLeadingEmoji(raw).trim();
     el.replaceWith(`\n:::${type}\n\n${body}\n\n:::\n`);
   }

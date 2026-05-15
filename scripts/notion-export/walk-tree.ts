@@ -38,7 +38,6 @@ export type Page = {
   icon: string | null;
   /** Icon === "✅". Drives whether a file is written. */
   ready: boolean;
-  lastEditedTime: string;
   /** Raw markdown from /v1/pages/:id/markdown. */
   markdown: string;
   truncated: boolean;
@@ -119,7 +118,6 @@ async function walkInto(args: WalkInto): Promise<void> {
     title,
     icon,
     ready,
-    lastEditedTime: meta.last_edited_time,
     markdown: mdRes.markdown,
     truncated: mdRes.truncated,
     unknownBlockIds: mdRes.unknown_block_ids,
@@ -202,11 +200,7 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
-  if (!argId) {
-    log(`No page id passed; using NOTION_ROOT_PAGE_ID=${rootId} from .env`);
-  }
 
-  log(`Walking tree from ${rootId}...`);
   const start = performance.now();
   const pages = await walkNotionTree({ rootId });
   const ms = performance.now() - start;

@@ -14,7 +14,6 @@ import { transformPageMarkdown } from "./transform.ts";
 import {
   makeImageStore,
   processImagesInMarkdown,
-  type ImageLint,
   type ImageStore,
 } from "./images.ts";
 import { renderPageFile } from "./frontmatter.ts";
@@ -36,7 +35,6 @@ type RenderSummary = {
   imagesReused: number;
   imagesFailed: Array<{ url: string; error: string }>;
   imagesBytes: number;
-  lint: ImageLint[];
 };
 
 // === Step: render markdown + download images for ✅ pages ================
@@ -54,7 +52,6 @@ async function renderPages(
     imagesReused: 0,
     imagesFailed: [],
     imagesBytes: 0,
-    lint: [],
   };
 
   for (const page of pages.values()) {
@@ -73,7 +70,6 @@ async function renderPages(
     summary.imagesReused += work.reused;
     summary.imagesFailed.push(...work.failed);
     summary.imagesBytes += work.bytes;
-    summary.lint.push(...work.lint);
   }
 
   return summary;
@@ -82,7 +78,6 @@ async function renderPages(
 // === Orchestrator =======================================================
 
 export async function runExport(options: ExportOptions): Promise<Pages> {
-  log(`Walking tree from ${options.rootId}...`);
   const tWalk = performance.now();
   const pages = await walkNotionTree({ rootId: options.rootId });
   const ready = [...pages.values()].filter((p) => p.ready).length;
@@ -90,31 +85,24 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
     `Walked ${pages.size} pages (${ready} ready, ${pages.size - ready} draft) in ${(performance.now() - tWalk).toFixed(0)}ms`,
   );
 
-  computePagePaths(pages, {});
+  computePagePaths(pages);
 
-  log("Transforming markdown + downloading images...");
   const tRender = performance.now();
   const render = await renderPages(pages, options);
   log(
-    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms`,
-  );
-  log(
-    `Images: ${render.imagesDownloaded} downloaded, ${render.imagesReused} reused, ${render.imagesFailed.length} failed (${(render.imagesBytes / 1024).toFixed(0)} KB)`,
+    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms (images: ${render.imagesDownloaded} downloaded, ${render.imagesReused} reused, ${render.imagesFailed.length} failed, ${(render.imagesBytes / 1024).toFixed(0)} KB)`,
   );
   for (const f of render.imagesFailed) {
     error(`image fetch failed: ${f.url} (${f.error})`);
   }
 
-  log(`Syncing filesystem at ${options.docsDir}...`);
   const fs = await syncFilesystem(pages, { docsDir: options.docsDir });
-  log(
-    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted`,
-  );
-
   const categories = await writeCategoryConfig(pages, {
     docsDir: options.docsDir,
   });
-  log(`Wrote ${categories} _category_.json files`);
+  log(
+    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; wrote ${categories} _category_.json`,
+  );
 
   return pages;
 }

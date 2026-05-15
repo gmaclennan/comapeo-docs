@@ -15,8 +15,6 @@
 import slugify from "@sindresorhus/slugify";
 import type { Page, Pages } from "./walk-tree.ts";
 
-export type ComputePathsOptions = Record<string, never>;
-
 function dirSlug(title: string): string {
   return title ? slugify(title, { lowercase: true }) : "untitled";
 }
@@ -25,7 +23,7 @@ function isSection(page: Page): boolean {
   return page.childIds.length > 0;
 }
 
-export function computePagePaths(pages: Pages, _options: ComputePathsOptions): void {
+export function computePagePaths(pages: Pages): void {
   // Compute dirSegments per page. A page's dirSegments are formed from its
   // ANCESTOR sections' titles (not its own — its own slug only affects its
   // children's path). For root, dirSegments is empty.

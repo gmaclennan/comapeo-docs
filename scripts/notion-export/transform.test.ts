@@ -53,15 +53,37 @@ describe("transformPageMarkdown — callouts", () => {
     );
   });
 
-  it("uses icon attribute for type when body has no emoji", () => {
+  it("uses icon attribute when body has no leading emoji", () => {
     const out = transform(`<callout icon="💡" color="gray_bg">**Tip:** Use the search bar</callout>`);
     expect(out).toContain(":::tip");
     expect(out).toContain("**Tip:**");
   });
 
-  it("matches callouts with attributes (color, icon, etc.)", () => {
-    const out = transform(`<callout color="blue_bg" icon="ℹ️">Heads up</callout>`);
-    expect(out).toContain(":::info");
+  it("falls back to color attribute when icon is non-emoji or absent", () => {
+    expect(transform(`<callout color="blue_bg">Heads up</callout>`)).toContain(
+      ":::info",
+    );
+    expect(transform(`<callout color="red_background">Danger</callout>`)).toContain(
+      ":::danger",
+    );
+    expect(transform(`<callout color="yellow">Watch out</callout>`)).toContain(
+      ":::warning",
+    );
+  });
+
+  it("icon attribute wins over color attribute", () => {
+    const out = transform(`<callout icon="💡" color="red_bg">Mixed signals</callout>`);
+    expect(out).toContain(":::tip");
+  });
+
+  it("falls back to body emoji when icon/color give no signal", () => {
+    expect(transform(`<callout>💡 from body</callout>`)).toContain(":::tip");
+  });
+
+  it("ignores non-emoji icons (external:, custom:)", () => {
+    expect(
+      transform(`<callout icon="external:https://example.com/x.png">Body</callout>`),
+    ).toContain(":::note");
   });
 });
 

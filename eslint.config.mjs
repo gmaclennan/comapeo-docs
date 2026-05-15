@@ -15,6 +15,7 @@ const eslintConfig = [
   {
     ignores: [
       "legacy/**",
+      "spike/**",
       "node_modules/**",
       ".docusaurus/**",
       "build/**",
@@ -82,9 +83,9 @@ const eslintConfig = [
     },
   },
 
-  // Pipeline scripts (scripts/) and spike (spike/) get import/promise/security rules
+  // Pipeline scripts get import/promise/security rules
   {
-    files: ["scripts/**/*.{js,mjs,cjs,ts}", "spike/**/*.{js,mjs,cjs,ts}"],
+    files: ["scripts/**/*.{js,mjs,cjs,ts}"],
     plugins: {
       import: importPlugin,
       promise: promisePlugin,
