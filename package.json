@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit",
     "notion:walk": "node --env-file-if-exists=.env scripts/notion-export/walk-tree.ts",
     "notion:export": "node --env-file-if-exists=.env scripts/notion-export/index.ts",
+    "notion:export:dry-run": "node --env-file-if-exists=.env scripts/notion-export/dry-run.ts",
     "test": "vitest run --pool=threads",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage --pool=threads",

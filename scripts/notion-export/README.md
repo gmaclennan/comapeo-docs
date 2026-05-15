@@ -11,6 +11,7 @@ pnpm notion:walk                                         # smoke-test: walk and 
 pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af        # explicit root id
 pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af --verbose
 pnpm notion:export                                       # full pipeline: walk → transform → write
+pnpm notion:export:dry-run                               # preview what would change (no repo writes for docs/redirects/manifest)
 pnpm test scripts/notion-export                          # vitest
 ```
 
