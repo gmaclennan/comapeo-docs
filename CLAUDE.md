@@ -63,10 +63,11 @@ The plan docs in `.claude/skills/notion-markdown-export/` supersede whatever the
 ## Coding style
 
 - TypeScript everywhere. No build step — Node 24 strips types natively.
-- ESM (`"type": "module"` in package.json).
+- Root `package.json` is CJS (Docusaurus 3.10's SSR server bundle needs webpack's CJS `require` runtime). `scripts/notion-export/package.json` adds `"type": "module"` for the pipeline.
 - Prettier defaults: 2 spaces, semicolons, double quotes. Don't fight the formatter.
 - Small, focused files. Flat folder structures unless size genuinely demands hierarchy.
 - Trust internal code; validate only at system boundaries (Notion API responses, env vars).
+- Function signatures: 1–2 positional args, 3+ as a single options object.
 - Default to writing NO comments. Only add one when the *why* is non-obvious — hidden constraint, workaround for a bug, surprising upstream behavior.
 
 ## What's where, mentally
@@ -88,59 +89,59 @@ This section grows as Sprints A–E land.
 - New content (English) → authored in Notion at the page tree root, exported by the pipeline
 - New translation → Weblate (Phase 4.5)
 
-## scripts/notion-export/ (Sprint A onwards)
+## scripts/notion-export/
 
-Offline pipeline that fetches the Notion page tree, transforms output, writes to `docs/`. See `scripts/notion-export/README.md` for the file-by-file map. Flat structure — no `lib/` subfolder.
+Offline pipeline. Walks the Notion page tree via the Markdown Content API, transforms output, writes `<pageId>.md` files into `docs/`, downloads images into `static/images/notion/`, emits `_category_.json` per section, and writes `.canonical-slugs.json` at repo root for the canonical-slug hook to consume.
 
-Smoke-test commands:
+See `scripts/notion-export/README.md` for the file-by-file map. Flat structure — no `lib/` subfolder.
 
-```bash
-pnpm notion:walk                                         # uses NOTION_ROOT_PAGE_ID from .env
-pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af        # explicit root
-pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af --verbose
-pnpm notion:export                                       # stub until Sprint B
-pnpm test scripts/notion-export                          # run module tests
-```
-
-Adding a new transform:
-
-1. Add the function to `scripts/notion-export/transform.ts` (or a new file if it's substantial)
-2. Pure function: `(markdown: string) => { markdown: string; report?: T }`
-3. Write tests in `transform.test.ts` (no env dependency — see `parse.ts` / `transform.ts` for the pattern)
-4. Wire into the orchestrator's per-page transform sequence (currently in `scripts/notion-export/index.ts` — Sprint B fills this in)
-
-Adding a fetch call:
-
-1. Add a typed wrapper to `scripts/notion-export/fetch.ts`
-2. It must go through the `notionFetch` pipeline (rate-limited, retried, http-error-aware) — don't reach for `fetch()` directly
-3. Validate any path-component page IDs via `normalizePageId(id)` first
-
-## scripts/notion-export/ writes the docs tree (Sprint B onwards)
+Commands:
 
 ```bash
-pnpm notion:export                                       # full pipeline against the page tree
+pnpm notion:walk                                         # walk-only smoke test (uses NOTION_ROOT_PAGE_ID from .env)
+pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af        # explicit root id
+pnpm notion:export                                       # full pipeline → writes docs/, images, manifest
+pnpm test scripts/notion-export                          # vitest
 ```
 
-The pipeline:
+**Idempotency:** rerunning the pipeline with no Notion changes produces zero git diff. Files with unchanged content are not rewritten.
 
-1. Walks the page tree via the Markdown API
-2. Transforms each page's markdown: strip empty/unsupported tags (`<empty-block/>`, `<table_of_contents/>`, `<unknown/>`), unwrap metadata tags (`<synced_block>`, `<span discussion-urls>`), rewrite `<page>` / `<mention-page>` references to `[title](<pageId>.md)`, convert `<callout>`s to Docusaurus admonitions, normalize inline math, self-close HTML void elements (`<br>`, `<hr>`, `<col>`, etc.), strip `![]()` empty image refs
-3. Downloads Notion-hosted images via the `ImageStore` interface; replaces URLs with `/images/notion/<sha256-12>.<ext>`; warns on `file://` and bare-filename URLs in the lint report
-4. Computes desired filesystem path per page (section dirs slugified from EN title; filename = `<pageId>.md`)
-5. Diffs against existing files: writes new content, moves on tree-reshape, deletes for archived pages, preserves files for 🚧 pages still in tree
-6. Writes one `_category_.json` per section directory; section landing falls back to `generated-index` when the section page itself is 🚧
+**Generated frontmatter:** only `title:` (plus optional `description:`). The doc id is derived from the file path; the slug is injected at Docusaurus build time by the canonical-slugs hook.
 
-**Idempotency:** running the pipeline twice without Notion changes produces zero git diff. Files with unchanged content are not rewritten (preserves mtime).
-
-**Frontmatter:** minimal — only `id: <pageId>` and `title: "..."`. Sprint C's canonical-slug plugin will inject `slug:` at build time.
-
-**Per-directory `package.json`:** `scripts/notion-export/package.json` sets `"type": "module"` so the pipeline runs as ESM under Node's native TS execution. The repo root stays CJS because Docusaurus 3.10's SSR server bundle needs webpack's CJS `require` runtime.
-
-Pipeline conventions:
-
-- All file I/O goes through `write-files.ts` (`globExistingFiles` + `planActions` + `applyActions`). Don't fan out `fs.writeFile` calls from elsewhere.
+**Pipeline conventions:**
+- All file I/O goes through `write-files.ts` (`syncFilesystem`). Don't fan out `fs.writeFile` calls from elsewhere in the pipeline.
 - All images go through `processImagesInMarkdown` in `images.ts`. Don't fetch image URLs directly.
-- Transforms are pure functions of markdown → markdown. The orchestrator in `index.ts` is the only place that sequences I/O.
+- HTML-tag transforms run through `node-html-parser`. Markdown-only fixups (inline math, empty image strip, void-element self-closing) stay as regex.
+- Each pipeline step has signature `(pages, options)`; mutates the shared `Pages` map. No side-channel accumulators.
+
+**Adding a new transform:**
+1. Add the function to `scripts/notion-export/transform.ts` (HTML-tag work goes via `node-html-parser`; pure-text fixups via regex).
+2. Pure function: `(markdown: string) => string`. Reports are returned, not mutated through args.
+3. Tests in `transform.test.ts` (env-free; only imports `transform.ts`).
+4. Wire into `transformPageMarkdown` in the correct order: HTML transforms first, then markdown-only fixups.
+
+**Adding a fetch call:**
+1. Add a typed wrapper to `scripts/notion-export/fetch.ts`.
+2. Must go through the `notionFetch` pipeline (rate-limited 3 rps, retry on 429/5xx, http-error-aware). Don't call `fetch()` directly.
+3. Validate any path-component page ids via `normalizePageId(id)` first.
+
+## src/plugins/canonical-slugs/
+
+Build-time URL slug injection wired into Docusaurus via `markdown.parseFrontMatter` in `docusaurus.config.ts`.
+
+```
+src/plugins/canonical-slugs/
+  parse-frontmatter.ts   hook that injects `slug:` into each doc's frontmatter
+  compute-slug.ts        pure slug-from-manifest computation
+  compute-slug.test.ts
+  README.md
+```
+
+The pipeline writes `.canonical-slugs.json` at repo root with each page's structural metadata. The hook reads it once at build time and computes URLs of the form `/<a1-slug>-<a1-id>/.../<this-slug>-<this-id>`.
+
+Phase 4.5 will extend the hook to read per-locale titles for the ancestor chain. Today the manifest's EN titles are used as ancestor labels in every locale.
+
+If the manifest is missing (fresh checkout before first `pnpm notion:export`), the hook silently skips slug injection so `pnpm dev` still boots.
 
 ## When in doubt
 

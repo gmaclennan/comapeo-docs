@@ -19,13 +19,16 @@ import {
 import { renderPageFile } from "./frontmatter.ts";
 import { syncFilesystem } from "./write-files.ts";
 import { writeCategoryConfig } from "./category-json.ts";
+import { writeManifest } from "./manifest.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 const DOCS_DIR = join(REPO_ROOT, "docs");
+const MANIFEST_PATH = join(REPO_ROOT, ".canonical-slugs.json");
 
 export type ExportOptions = {
   rootId: string;
   docsDir: string;
+  manifestPath: string;
   imageStore: ImageStore;
 };
 
@@ -100,8 +103,9 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
   const categories = await writeCategoryConfig(pages, {
     docsDir: options.docsDir,
   });
+  await writeManifest(pages, { manifestPath: options.manifestPath });
   log(
-    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; wrote ${categories} _category_.json`,
+    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; wrote ${categories} _category_.json + manifest`,
   );
 
   return pages;
@@ -122,6 +126,7 @@ async function main(): Promise<void> {
   await runExport({
     rootId,
     docsDir: DOCS_DIR,
+    manifestPath: MANIFEST_PATH,
     imageStore: makeImageStore(),
   });
   log("Done.");

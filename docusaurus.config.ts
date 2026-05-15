@@ -2,8 +2,7 @@ import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 import dotenv from "dotenv";
-
-// Remark plugins are added by the canonical-slugs plugin in Sprint C (see plan).
+import { parseFrontMatterWithSlug } from "./src/plugins/canonical-slugs/parse-frontmatter";
 
 dotenv.config();
 
@@ -36,6 +35,10 @@ const config: Config = {
       onBrokenMarkdownLinks: "warn",
       onBrokenMarkdownImages: "warn",
     },
+    // Canonical-slug injection: reads `.canonical-slugs.json` (written by
+    // the notion-export pipeline) and adds `slug: /<...>-<pageId>` to each
+    // doc's frontmatter before the docs plugin resolves routes.
+    parseFrontMatter: parseFrontMatterWithSlug,
   },
 
   // Prevent search engines from indexing staging/preview builds.

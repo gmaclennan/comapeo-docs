@@ -1,0 +1,593 @@
+{
+  "version": 1,
+  "rootId": "360c90f22b6381b5a108c49dfb1ff9af",
+  "pages": {
+    "360c90f22b638100afc8e91ea8516f7c": {
+      "title": "Troubleshooting: Setup & Customization",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381029635c4ca8e033ef1": {
+      "title": "Editing Observations & Tracks",
+      "parentId": "360c90f22b638175929bc129c2690f2b",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638175929bc129c2690f2b"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63810385bdee3e98c6ca1b": {
+      "title": "Exporting all Observations",
+      "parentId": "360c90f22b6381faa160ef4dd8044b25",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381faa160ef4dd8044b25"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381058525d8fb8f69a1df": {
+      "title": "Miscellaneous",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381098718c867a8d5240e": {
+      "title": "Sharing a Single Observation & Metadata",
+      "parentId": "360c90f22b6381faa160ef4dd8044b25",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381faa160ef4dd8044b25"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63810d8eb8f49934c2ab24": {
+      "title": "Testing: page title in menu and breadcrumbs",
+      "parentId": "360c90f22b638123aa2cd7169f9b716e",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638123aa2cd7169f9b716e"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381149a70de39d00fd0ed": {
+      "title": "Troubleshooting: Observations & Tracks",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381168327e377a88256aa": {
+      "title": "Uninstalling CoMapeo",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638123aa2cd7169f9b716e": {
+      "title": "Overview",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381288e88e641d10392c0": {
+      "title": "CoMapeo Categories",
+      "parentId": "360c90f22b6381fb8322f1782daeaf18",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381fb8322f1782daeaf18"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63812d9d04d59c509f2d8e": {
+      "title": "Gathering Observations & Tracks",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b638145b924fdfd57ffa908": {
+      "title": "Creating a New Project",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381478f61fc50fcf21bc7": {
+      "title": "Device Setup & Maintenance for CoMapeo",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638149b1b5fd836bec86ce": {
+      "title": "Exchanging Observations",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381509c24e1a7ee479ef8": {
+      "title": "Understanding Projects",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638155acf4d5206cfc6e36": {
+      "title": "Installing CoMapeo & Onboarding",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638155b58cf803d68fe27c": {
+      "title": "Removing a Device from a Project",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638156a256c7ed83116ec6": {
+      "title": "Glossary",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638158a487fcaf5ff8f234": {
+      "title": "Understanding CoMapeo's Core Concepts & Functions",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63815d9842cfc289550847": {
+      "title": "Understanding How Exchange Works",
+      "parentId": "360c90f22b638149b1b5fd836bec86ce",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638149b1b5fd836bec86ce"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638160ba62f3f464a2d7db": {
+      "title": "Ending a Project (duplicate)",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63816586efc0914c7dd912": {
+      "title": "Ending a Project",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63816888dfdbeb3d4f20db": {
+      "title": "Creating a New Track",
+      "parentId": "360c90f22b63812d9d04d59c509f2d8e",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63812d9d04d59c509f2d8e"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63816f8dcbc8d45d015b5d": {
+      "title": "Site Map",
+      "parentId": "360c90f22b6381fb8322f1782daeaf18",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381fb8322f1782daeaf18"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381709e44e98d66d4e8b6": {
+      "title": "Selecting Device Roles & Teams",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638174a568d5c447e3308e": {
+      "title": "Creating a New Observation",
+      "parentId": "360c90f22b63812d9d04d59c509f2d8e",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63812d9d04d59c509f2d8e"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638175929bc129c2690f2b": {
+      "title": "Reviewing Observations & Tracks",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381768fbbf1a9a6cf0bdd": {
+      "title": "Introduction",
+      "parentId": "360c90f22b638123aa2cd7169f9b716e",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638123aa2cd7169f9b716e"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381769168e379cbf6d437": {
+      "title": "Using Observations outside of CoMapeo",
+      "parentId": "360c90f22b6381faa160ef4dd8044b25",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381faa160ef4dd8044b25"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63817bbedbc2921a00d1fc": {
+      "title": "Troubleshooting: Data Privacy & Security",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63817f90a1eb87c8cf5fd5": {
+      "title": "Preparing to Use CoMapeo",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b638183a39cf64f8215b6ce": {
+      "title": "Common Solutions",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638183acf8f0f21eab7b0a": {
+      "title": "Using Exchange Offline",
+      "parentId": "360c90f22b638149b1b5fd836bec86ce",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638149b1b5fd836bec86ce"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638185ae16e107d9f48c0d": {
+      "title": "Reviewing Individual Observations & Tracks",
+      "parentId": "360c90f22b638175929bc129c2690f2b",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638175929bc129c2690f2b"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b638188ad85dbf0a7794055": {
+      "title": "Troubleshooting: Mapping with Collaborators",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63818fad7af5bcb82f3f8e": {
+      "title": "Using Exchange over the Internet (with Remote Archive?)",
+      "parentId": "360c90f22b638149b1b5fd836bec86ce",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638149b1b5fd836bec86ce"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b63819aa4cdc9a15c7ef1a5": {
+      "title": "Managing Projects",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381a39db4c5814005dae4": {
+      "title": "Using an App Passcode for Security",
+      "parentId": "360c90f22b6381bf9638c05ecc3bbf52",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381bf9638c05ecc3bbf52"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381a5b7a6ec8aadada911": {
+      "title": "Setting up a Remote Archive",
+      "parentId": "360c90f22b638149b1b5fd836bec86ce",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638149b1b5fd836bec86ce"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381aab7e0e7cec96e043b": {
+      "title": "Creating a Custom Categories Set",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381acbf81e0f46485e447": {
+      "title": "Deleting Observations & Tracks",
+      "parentId": "360c90f22b638175929bc129c2690f2b",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638175929bc129c2690f2b"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381b1ae28c259eec6e71f": {
+      "title": "Planning & Preparing for a Project",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381b5a108c49dfb1ff9af": {
+      "title": "CoMapeo Docs (page tree)",
+      "parentId": null,
+      "ancestorIds": [],
+      "isSection": true,
+      "isRoot": true
+    },
+    "360c90f22b6381bab47ddc08314dd6f5": {
+      "title": "Gathering the Right Equipment for CoMapeo",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381bf9638c05ecc3bbf52": {
+      "title": "Managing Data & Privacy",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381c89607ea85822e617e": {
+      "title": "CoMapeo Data & Privacy (translating for public page)",
+      "parentId": "360c90f22b6381fb8322f1782daeaf18",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381fb8322f1782daeaf18"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381ca82c3c42392071fa3": {
+      "title": "Getting Familiar with CoMapeo",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381d69499c232b8a71813": {
+      "title": "Creating Custom Background Maps",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381d785c4d5a580eafe21": {
+      "title": "Troubleshooting: Moving Observations & Tracks outside of CoMapeo",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381d9b8ccfbc4f95e2332": {
+      "title": "Adjusting Data Sharing & Privacy",
+      "parentId": "360c90f22b6381bf9638c05ecc3bbf52",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381bf9638c05ecc3bbf52"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381dbb653e03fea2ec971": {
+      "title": "Exploring the Observations List",
+      "parentId": "360c90f22b638175929bc129c2690f2b",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638175929bc129c2690f2b"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381e39e66da277a7d2b68": {
+      "title": "Inviting Collaborators",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381e694a6e1642d59d272": {
+      "title": "Sharing Background Map",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381f092cdcb6cabd22462": {
+      "title": "Changing Background Maps",
+      "parentId": "360c90f22b63817f90a1eb87c8cf5fd5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63817f90a1eb87c8cf5fd5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381f0acc9fad43c16bced": {
+      "title": "Leave a Project",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381f788b6cdb7ac6345af": {
+      "title": "FAQ",
+      "parentId": "360c90f22b6381058525d8fb8f69a1df",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381058525d8fb8f69a1df"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381f9bb1acceb83f0c363": {
+      "title": "Encryption & Security",
+      "parentId": "360c90f22b6381bf9638c05ecc3bbf52",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b6381bf9638c05ecc3bbf52"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "360c90f22b6381faa160ef4dd8044b25": {
+      "title": "Sharing & Exporting",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381fb8322f1782daeaf18": {
+      "title": "Uncategorized",
+      "parentId": "360c90f22b6381b5a108c49dfb1ff9af",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af"
+      ],
+      "isSection": true,
+      "isRoot": false
+    },
+    "360c90f22b6381fcaf38fbc080223d8e": {
+      "title": "Changing Categories Set",
+      "parentId": "360c90f22b63819aa4cdc9a15c7ef1a5",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    }
+  }
+}
