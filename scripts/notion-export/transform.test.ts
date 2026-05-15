@@ -1,217 +1,177 @@
 import { describe, expect, it } from "vitest";
-import {
-  convertCallouts,
-  rewritePageLinks,
-  stripUnsupportedTags,
-  transformInline,
-  transformPageMarkdown,
-  unwrapMetadataTags,
-} from "./transform.ts";
+import { transformPageMarkdown } from "./transform.ts";
 
 const ID_A = "00112233445566778899aabbccddeeff";
 const ID_B = "112233445566778899aabbccddeeff00";
 
-describe("convertCallouts", () => {
-  it("converts a single callout with no emoji to :::note", () => {
-    const input = "<callout>Plain warning text</callout>";
-    const { markdown, report } = convertCallouts(input);
-    expect(markdown).toContain(":::note");
-    expect(markdown).toContain("Plain warning text");
-    expect(report.total).toBe(1);
-    expect(report.byType.note).toBe(1);
+function transform(md: string, titles: Map<string, string> = new Map()) {
+  return transformPageMarkdown(md, titles);
+}
+
+describe("transformPageMarkdown — callouts", () => {
+  it("converts a callout with no emoji to :::note", () => {
+    const out = transform("<callout>Plain text</callout>");
+    expect(out).toContain(":::note");
+    expect(out).toContain("Plain text");
   });
 
   it("maps emoji prefixes to admonition types", () => {
-    const cases: Array<[string, string]> = [
-      ["💡 helpful", "tip"],
-      ["⚠️ careful", "warning"],
-      ["🔥 danger", "danger"],
-      ["❗ caution", "caution"],
-      ["ℹ️ info", "info"],
-    ];
-    for (const [body, expectedType] of cases) {
-      const { markdown, report } = convertCallouts(`<callout>${body}</callout>`);
-      expect(markdown).toContain(`:::${expectedType}`);
-      expect(report.byType[expectedType]).toBe(1);
-    }
+    expect(transform("<callout>💡 helpful</callout>")).toContain(":::tip");
+    expect(transform("<callout>⚠️ careful</callout>")).toContain(":::warning");
+    expect(transform("<callout>🔥 danger</callout>")).toContain(":::danger");
+    expect(transform("<callout>❗ caution</callout>")).toContain(":::caution");
+    expect(transform("<callout>ℹ️ info</callout>")).toContain(":::info");
   });
 
   it("strips the leading emoji from the body", () => {
-    const { markdown } = convertCallouts(
-      "<callout>💡 Use the search bar to find pages</callout>",
-    );
-    expect(markdown).not.toContain("💡");
-    expect(markdown).toContain("Use the search bar to find pages");
-  });
-
-  it("preserves trailing content around the callout", () => {
-    const input = "Before\n\n<callout>💡 tip</callout>\n\nAfter";
-    const { markdown } = convertCallouts(input);
-    expect(markdown).toMatch(/Before[\s\S]*:::tip[\s\S]*tip[\s\S]*:::[\s\S]*After/);
+    const out = transform("<callout>💡 Use the search bar</callout>");
+    expect(out).not.toMatch(/💡/);
+    expect(out).toContain("Use the search bar");
   });
 
   it("handles multiple callouts in one document", () => {
-    const input =
-      "<callout>💡 first</callout>\n\n<callout>⚠️ second</callout>";
-    const { markdown, report } = convertCallouts(input);
-    expect(report.total).toBe(2);
-    expect(report.byType.tip).toBe(1);
-    expect(report.byType.warning).toBe(1);
-    expect(markdown).toContain(":::tip");
-    expect(markdown).toContain(":::warning");
+    const out = transform(
+      "<callout>💡 first</callout>\n\n<callout>⚠️ second</callout>",
+    );
+    expect(out).toContain(":::tip");
+    expect(out).toContain(":::warning");
   });
 
   it("converts nested callouts (innermost first)", () => {
-    const input =
-      "<callout>💡 outer\n<callout>⚠️ inner</callout>\nback to outer</callout>";
-    const { markdown, report } = convertCallouts(input);
-    expect(report.total).toBe(2);
-    expect(report.byType.tip).toBe(1);
-    expect(report.byType.warning).toBe(1);
-    // Both admonitions should be present, with warning nested inside tip.
-    const tipIdx = markdown.indexOf(":::tip");
-    const warningIdx = markdown.indexOf(":::warning");
-    const closeIdx = markdown.lastIndexOf(":::");
-    expect(tipIdx).toBeGreaterThanOrEqual(0);
-    expect(warningIdx).toBeGreaterThan(tipIdx);
-    expect(closeIdx).toBeGreaterThan(warningIdx);
+    const out = transform(
+      "<callout>💡 outer\n<callout>⚠️ inner</callout>\nback to outer</callout>",
+    );
+    const tip = out.indexOf(":::tip");
+    const warning = out.indexOf(":::warning");
+    expect(tip).toBeGreaterThanOrEqual(0);
+    expect(warning).toBeGreaterThan(tip);
   });
 
-  it("is a no-op when there are no callouts", () => {
-    const input = "# Just a heading\n\nSome paragraph.";
-    const { markdown, report } = convertCallouts(input);
-    expect(markdown).toBe(input);
-    expect(report.total).toBe(0);
+  it("leaves prose with no callouts unchanged", () => {
+    expect(transform("# Heading\n\nSome paragraph.")).toBe(
+      "# Heading\n\nSome paragraph.",
+    );
   });
 
-  it("throws on malformed (unbalanced) callouts to avoid infinite loops", () => {
-    // An unbalanced opening tag without closing would cause CALLOUT_TAG_RE to
-    // never match, so the loop would terminate normally — no throw.
-    // But if a synthetic input keeps generating new <callout> after each pass,
-    // the safety limit fires. We can simulate by checking the cap exists.
-    expect(() =>
-      convertCallouts(
-        Array.from({ length: 40 }, (_, i) => `<callout>L${i}<callout>x</callout></callout>`).join(
-          "\n",
-        ),
-      ),
-    ).not.toThrow(); // 40 deeply-flat-then-nested pairs still resolve under the cap.
+  it("uses icon attribute for type when body has no emoji", () => {
+    const out = transform(`<callout icon="💡" color="gray_bg">**Tip:** Use the search bar</callout>`);
+    expect(out).toContain(":::tip");
+    expect(out).toContain("**Tip:**");
+  });
+
+  it("matches callouts with attributes (color, icon, etc.)", () => {
+    const out = transform(`<callout color="blue_bg" icon="ℹ️">Heads up</callout>`);
+    expect(out).toContain(":::info");
   });
 });
 
-describe("stripUnsupportedTags", () => {
+describe("transformPageMarkdown — strip / unwrap", () => {
   it("removes <empty-block/>", () => {
-    expect(stripUnsupportedTags("a<empty-block/>b")).toBe("ab");
+    expect(transform("a<empty-block/>b")).toBe("ab");
   });
 
   it("removes <table_of_contents .../>", () => {
     expect(
-      stripUnsupportedTags(`Before<table_of_contents color="default" />After`),
+      transform(`Before<table_of_contents color="default" />After`),
     ).toBe("BeforeAfter");
   });
 
-  it("removes <unknown .../> regardless of alt", () => {
-    expect(
-      stripUnsupportedTags(`<unknown id="x" alt="button"/>x`),
-    ).toBe("x");
-    expect(stripUnsupportedTags(`y<unknown alt="bookmark"/>z`)).toBe("yz");
+  it("removes <unknown ... alt=...>", () => {
+    expect(transform(`x<unknown id="y" alt="button"/>z`)).toBe("xz");
   });
 
-  it("is a no-op when no strip targets are present", () => {
-    expect(stripUnsupportedTags("# Heading\nbody")).toBe("# Heading\nbody");
-  });
-});
-
-describe("unwrapMetadataTags", () => {
-  it("unwraps <synced_block ...>content</synced_block>", () => {
-    expect(
-      unwrapMetadataTags(
-        `<synced_block url="x">visible content</synced_block>`,
-      ),
-    ).toBe("visible content");
+  it("unwraps <synced_block>content</synced_block>", () => {
+    expect(transform(`<synced_block url="x">visible</synced_block>`)).toBe(
+      "visible",
+    );
   });
 
-  it("unwraps <synced_block_reference ...>content</synced_block_reference>", () => {
+  it("unwraps <synced_block_reference>", () => {
     expect(
-      unwrapMetadataTags(
+      transform(
         `<synced_block_reference url="y">inner</synced_block_reference>`,
       ),
     ).toBe("inner");
   });
 
-  it('unwraps <span discussion-urls="...">text</span>', () => {
-    expect(
-      unwrapMetadataTags(`<span discussion-urls="a,b">visible</span>`),
-    ).toBe("visible");
+  it("unwraps <span discussion-urls=...>", () => {
+    expect(transform(`<span discussion-urls="a,b">visible</span>`)).toBe(
+      "visible",
+    );
   });
 
   it("leaves unrelated <span> tags alone", () => {
-    expect(unwrapMetadataTags(`<span class="x">y</span>`)).toBe(
-      `<span class="x">y</span>`,
-    );
+    expect(transform(`<span class="x">y</span>`)).toBe(`<span class="x">y</span>`);
   });
 });
 
-describe("transformInline", () => {
+describe("transformPageMarkdown — inline fixups", () => {
   it("converts inline math from $`expr`$ to $expr$", () => {
-    expect(transformInline(`See $\`E=mc^2\`$ for energy`)).toBe(
+    expect(transform("See $`E=mc^2`$ for energy")).toBe(
       "See $E=mc^2$ for energy",
     );
   });
 
   it("handles multiple inline math expressions", () => {
-    expect(transformInline(`$\`a\`$ and $\`b\`$`)).toBe("$a$ and $b$");
+    expect(transform("$`a`$ and $`b`$")).toBe("$a$ and $b$");
   });
 
-  it("is a no-op for plain text", () => {
-    expect(transformInline("no math here")).toBe("no math here");
+  it("strips empty markdown image refs", () => {
+    expect(transform("Before ![](  ) After")).toBe("Before  After");
+    expect(transform("![alt]()")).toBe("");
+  });
+
+  it("self-closes HTML void elements for MDX", () => {
+    expect(transform("Line 1<br>Line 2")).toBe("Line 1<br/>Line 2");
+    expect(transform("<hr>")).toBe("<hr/>");
+    expect(transform(`<col span="2">`)).toBe(`<col span="2"/>`);
+  });
+
+  it("leaves already self-closed void elements alone", () => {
+    expect(transform("<br/>")).toBe("<br/>");
   });
 });
 
-describe("rewritePageLinks", () => {
+describe("transformPageMarkdown — page link rewriting", () => {
   const titles = new Map([
     [ID_A, "Article A"],
     [ID_B, "Article B"],
   ]);
 
   it("rewrites self-closing <page url=.../>", () => {
-    const out = rewritePageLinks(
-      `<page url="https://www.notion.so/${ID_A}"/>`,
-      titles,
-    );
-    expect(out).toBe(`[Article A](${ID_A}.md)`);
+    expect(
+      transform(`<page url="https://www.notion.so/${ID_A}"/>`, titles),
+    ).toBe(`[Article A](${ID_A}.md)`);
   });
 
   it("rewrites <page url=...>inline title</page>", () => {
-    const out = rewritePageLinks(
-      `<page url="https://www.notion.so/${ID_A}">Custom Title</page>`,
-      titles,
-    );
-    expect(out).toBe(`[Custom Title](${ID_A}.md)`);
+    expect(
+      transform(
+        `<page url="https://www.notion.so/${ID_A}">Custom Title</page>`,
+        titles,
+      ),
+    ).toBe(`[Custom Title](${ID_A}.md)`);
   });
 
   it("falls back to title map when inline content is empty", () => {
-    const out = rewritePageLinks(
-      `<page url="https://www.notion.so/${ID_A}"></page>`,
-      titles,
-    );
-    expect(out).toBe(`[Article A](${ID_A}.md)`);
+    expect(
+      transform(`<page url="https://www.notion.so/${ID_A}"></page>`, titles),
+    ).toBe(`[Article A](${ID_A}.md)`);
   });
 
   it("falls back to pageId when no title is known", () => {
-    const out = rewritePageLinks(
-      `<page url="https://www.notion.so/${ID_A}"/>`,
-      new Map(),
-    );
-    expect(out).toBe(`[${ID_A}](${ID_A}.md)`);
+    expect(
+      transform(`<page url="https://www.notion.so/${ID_A}"/>`, new Map()),
+    ).toBe(`[${ID_A}](${ID_A}.md)`);
   });
 
-  it("rewrites <mention-page url=.../> the same way", () => {
-    const out = rewritePageLinks(
-      `See <mention-page url="https://www.notion.so/${ID_B}"/> for B`,
-      titles,
-    );
-    expect(out).toBe(`See [Article B](${ID_B}.md) for B`);
+  it("rewrites <mention-page url=.../>", () => {
+    expect(
+      transform(
+        `See <mention-page url="https://www.notion.so/${ID_B}"/> for details`,
+        titles,
+      ),
+    ).toBe(`See [Article B](${ID_B}.md) for details`);
   });
 
   it("handles a mix in one document", () => {
@@ -219,34 +179,32 @@ describe("rewritePageLinks", () => {
 <page url="https://www.notion.so/${ID_A}"/>
 <page url="https://www.notion.so/${ID_B}">Override B</page>
 And reference: <mention-page url="https://www.notion.so/${ID_A}"/>`;
-    const out = rewritePageLinks(input, titles);
+    const out = transform(input, titles);
     expect(out).toContain(`[Article A](${ID_A}.md)`);
     expect(out).toContain(`[Override B](${ID_B}.md)`);
-    // mention-page should also resolve to "Article A"
-    expect(
-      out.match(new RegExp(`\\[Article A\\]\\(${ID_A}\\.md\\)`, "g")) ?? [],
-    ).toHaveLength(2);
+    expect(out.match(new RegExp(`\\[Article A\\]\\(${ID_A}\\.md\\)`, "g")))
+      .toHaveLength(2);
   });
 });
 
-describe("transformPageMarkdown", () => {
-  it("runs the full pipeline (strip + unwrap + page-links + callouts + inline)", () => {
-    const titles = new Map([[ID_A, "Linked Page"]]);
+describe("transformPageMarkdown — end-to-end", () => {
+  it("runs all transforms in correct order on a mixed document", () => {
+    const titles = new Map([[ID_A, "Linked"]]);
     const input = `# Heading
 <empty-block/>
 <callout>💡 See <page url="https://www.notion.so/${ID_A}"/> for details.</callout>
 Inline math: $\`x^2\`$.
-<synced_block url="x">synced content</synced_block>`;
+<synced_block url="x">synced content</synced_block>
+A line<br>then another`;
 
-    const { markdown, report } = transformPageMarkdown(input, titles);
+    const out = transform(input, titles);
 
-    expect(markdown).not.toContain("<empty-block/>");
-    expect(markdown).not.toContain("<synced_block");
-    expect(markdown).toContain("synced content");
-    expect(markdown).toContain(`[Linked Page](${ID_A}.md)`);
-    expect(markdown).toContain(":::tip");
-    expect(markdown).toContain("$x^2$");
-    expect(report.callouts.total).toBe(1);
-    expect(report.callouts.byType.tip).toBe(1);
+    expect(out).not.toContain("<empty-block/>");
+    expect(out).not.toContain("<synced_block");
+    expect(out).toContain("synced content");
+    expect(out).toContain(`[Linked](${ID_A}.md)`);
+    expect(out).toContain(":::tip");
+    expect(out).toContain("$x^2$");
+    expect(out).toContain("<br/>");
   });
 });

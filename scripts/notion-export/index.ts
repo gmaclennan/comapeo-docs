@@ -59,10 +59,7 @@ async function renderPages(
 
   for (const page of pages.values()) {
     if (!page.ready) continue;
-    const { markdown: transformed } = transformPageMarkdown(
-      page.markdown,
-      titles,
-    );
+    const transformed = transformPageMarkdown(page.markdown, titles);
     const work = await processImagesInMarkdown(transformed, {
       store: options.imageStore,
       page,
