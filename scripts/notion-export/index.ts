@@ -1,151 +1,144 @@
 // Pipeline orchestrator.
-// Sprint B: walk → transform → images → write/move/delete → _category_.json.
-// Sprint C will add the canonical-slug Docusaurus plugin (separate concern).
-// Sprint D will add redirects + validation + CI.
+//
+// Each step takes (pages, options) and mutates pages in place. The orchestrator
+// reads top to bottom like a recipe; data flow is "the pages map gains more
+// fields as we go". No parallel maps or accumulated action lists.
 
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { NOTION_ROOT_PAGE_ID } from "./env.ts";
 import { error, log } from "./logger.ts";
-import { walkTree, flattenTree, type TreeNode } from "./walk-tree.ts";
+import { walkNotionTree, type Pages } from "./walk-tree.ts";
+import { computePagePaths } from "./paths.ts";
 import { transformPageMarkdown } from "./transform.ts";
 import {
-  processImagesInMarkdown,
   makeImageStore,
-  makeEmptyReport,
-  type ImageReport,
+  processImagesInMarkdown,
+  type ImageLint,
   type ImageStore,
 } from "./images.ts";
 import { renderPageFile } from "./frontmatter.ts";
-import { buildPaths } from "./paths.ts";
-import {
-  applyActions,
-  globExistingFiles,
-  planActions,
-} from "./write-files.ts";
-import { writeCategoryJsonFiles } from "./category-json.ts";
+import { syncFilesystem } from "./write-files.ts";
+import { writeCategoryConfig } from "./category-json.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
-const DOCS_ROOT = join(REPO_ROOT, "docs");
+const DOCS_DIR = join(REPO_ROOT, "docs");
 
-function buildTitleMap(root: TreeNode): Map<string, string> {
+export type ExportOptions = {
+  rootId: string;
+  docsDir: string;
+  imageStore: ImageStore;
+};
+
+type RenderSummary = {
+  rendered: number;
+  imagesDownloaded: number;
+  imagesReused: number;
+  imagesFailed: Array<{ url: string; error: string }>;
+  imagesBytes: number;
+  lint: ImageLint[];
+};
+
+// === Step: render markdown + download images for ✅ pages ================
+
+async function renderPages(
+  pages: Pages,
+  options: ExportOptions,
+): Promise<RenderSummary> {
   const titles = new Map<string, string>();
-  for (const node of flattenTree(root)) {
-    titles.set(node.id, node.title || node.id);
-  }
-  return titles;
-}
+  for (const page of pages.values()) titles.set(page.id, page.title || page.id);
 
-async function renderPublishableContents(
-  root: TreeNode,
-  titles: Map<string, string>,
-  store: ImageStore,
-  imageReport: ImageReport,
-): Promise<Map<string, string>> {
-  const contents = new Map<string, string>();
-  for (const node of flattenTree(root)) {
-    if (!node.ready) continue;
+  const summary: RenderSummary = {
+    rendered: 0,
+    imagesDownloaded: 0,
+    imagesReused: 0,
+    imagesFailed: [],
+    imagesBytes: 0,
+    lint: [],
+  };
 
+  for (const page of pages.values()) {
+    if (!page.ready) continue;
     const { markdown: transformed } = transformPageMarkdown(
-      node.markdown,
+      page.markdown,
       titles,
     );
-
-    const withImages = await processImagesInMarkdown(
-      transformed,
-      store,
-      node.id,
-      node.title,
-      imageReport,
+    const work = await processImagesInMarkdown(transformed, {
+      store: options.imageStore,
+      page,
+    });
+    page.body = renderPageFile(
+      { title: page.title || "(untitled)" },
+      work.markdown,
     );
-
-    const fileBody = renderPageFile(
-      { id: node.id, title: node.title || "(untitled)" },
-      withImages,
-    );
-    contents.set(node.id, fileBody);
+    summary.rendered += 1;
+    summary.imagesDownloaded += work.downloaded;
+    summary.imagesReused += work.reused;
+    summary.imagesFailed.push(...work.failed);
+    summary.imagesBytes += work.bytes;
+    summary.lint.push(...work.lint);
   }
-  return contents;
+
+  return summary;
 }
+
+// === Orchestrator =======================================================
+
+export async function runExport(options: ExportOptions): Promise<Pages> {
+  log(`Walking tree from ${options.rootId}...`);
+  const tWalk = performance.now();
+  const pages = await walkNotionTree({ rootId: options.rootId });
+  const ready = [...pages.values()].filter((p) => p.ready).length;
+  log(
+    `Walked ${pages.size} pages (${ready} ready, ${pages.size - ready} draft) in ${(performance.now() - tWalk).toFixed(0)}ms`,
+  );
+
+  computePagePaths(pages, {});
+
+  log("Transforming markdown + downloading images...");
+  const tRender = performance.now();
+  const render = await renderPages(pages, options);
+  log(
+    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms`,
+  );
+  log(
+    `Images: ${render.imagesDownloaded} downloaded, ${render.imagesReused} reused, ${render.imagesFailed.length} failed (${(render.imagesBytes / 1024).toFixed(0)} KB)`,
+  );
+  for (const f of render.imagesFailed) {
+    error(`image fetch failed: ${f.url} (${f.error})`);
+  }
+
+  log(`Syncing filesystem at ${options.docsDir}...`);
+  const fs = await syncFilesystem(pages, { docsDir: options.docsDir });
+  log(
+    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted`,
+  );
+
+  const categories = await writeCategoryConfig(pages, {
+    docsDir: options.docsDir,
+  });
+  log(`Wrote ${categories} _category_.json files`);
+
+  return pages;
+}
+
+// === CLI entry ==========================================================
 
 async function main(): Promise<void> {
   const argId = process.argv[2];
   const rootId = argId ?? NOTION_ROOT_PAGE_ID;
   if (!rootId) {
-    error("no root page id. Pass one as argv[2] or set NOTION_ROOT_PAGE_ID in .env");
+    error(
+      "no root page id. Pass one as argv[2] or set NOTION_ROOT_PAGE_ID in .env",
+    );
     process.exit(1);
   }
 
-  log(`Walking tree from ${rootId}...`);
-  const startWalk = performance.now();
-  const root = await walkTree(rootId);
-  const all = flattenTree(root);
-  const publishable = all.filter((n) => n.ready);
-  log(
-    `Walked ${all.length} pages (${publishable.length} ready, ${all.length - publishable.length} draft) in ${(performance.now() - startWalk).toFixed(0)}ms`,
-  );
-
-  const titles = buildTitleMap(root);
-  const paths = buildPaths(root);
-  const store = makeImageStore();
-  const imageReport = makeEmptyReport();
-
-  log("Transforming markdown + downloading images...");
-  const startRender = performance.now();
-  const contents = await renderPublishableContents(
-    root,
-    titles,
-    store,
-    imageReport,
-  );
-  log(
-    `Rendered ${contents.size} pages in ${(performance.now() - startRender).toFixed(0)}ms`,
-  );
-  log(
-    `Images: ${imageReport.downloaded} downloaded, ${imageReport.reused} reused, ${imageReport.failed.length} failed (${(imageReport.bytes / 1024).toFixed(0)} KB)`,
-  );
-  if (imageReport.failed.length > 0) {
-    for (const f of imageReport.failed) {
-      error(`image fetch failed: ${f.url} (${f.error})`);
-    }
-  }
-
-  // Build the desired set: only publishable pages get their content written.
-  // 🚧 pages get their paths computed (so a future ✅ promotion finds the
-  // right path), but we don't include them in the action set yet.
-  const desired = new Map(
-    publishable.map((n) => {
-      const info = paths.get(n.id);
-      if (!info) throw new Error(`buildPaths missed pageId ${n.id}`);
-      return [n.id, info];
-    }),
-  );
-
-  const everyPageInTree = new Set(all.map((n) => n.id));
-
-  const existing = await globExistingFiles(DOCS_ROOT);
-
-  // Filter out existing files that map to 🚧 pages — preserve those.
-  const existingForActions = new Map<string, string>();
-  for (const [id, abs] of existing) {
-    if (everyPageInTree.has(id) && !desired.has(id)) {
-      // Page is 🚧 in tree — preserve its existing file untouched.
-      continue;
-    }
-    existingForActions.set(id, abs);
-  }
-
-  log(`Planning actions against ${DOCS_ROOT}...`);
-  const actions = planActions(desired, existingForActions, contents, DOCS_ROOT);
-  const summary = await applyActions(actions, DOCS_ROOT);
-  log(
-    `Files: ${summary.written} written, ${summary.unchanged} unchanged, ${summary.moved} moved, ${summary.deleted} deleted`,
-  );
-
-  log("Writing _category_.json files...");
-  const categoryFiles = await writeCategoryJsonFiles(root, paths, DOCS_ROOT);
-  log(`Wrote ${categoryFiles.length} _category_.json files`);
-
+  await runExport({
+    rootId,
+    docsDir: DOCS_DIR,
+    imageStore: makeImageStore(),
+  });
   log("Done.");
 }
 

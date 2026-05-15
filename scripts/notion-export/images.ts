@@ -15,6 +15,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { pipeline, withConcurrency, withRetry } from "fetch-extras";
+import type { Page } from "./walk-tree.ts";
 
 export interface ImageStore {
   /** Has an object with this key already been stored? */
@@ -142,8 +143,9 @@ export type ImageLint = {
   url: string;
 };
 
-export type ImageReport = {
-  total: number;
+export type ImageWork = {
+  /** Markdown with notion-hosted image URLs rewritten to public store URLs. */
+  markdown: string;
   downloaded: number;
   reused: number;
   failed: Array<{ url: string; error: string }>;
@@ -151,58 +153,57 @@ export type ImageReport = {
   lint: ImageLint[];
 };
 
-export function makeEmptyReport(): ImageReport {
-  return {
-    total: 0,
+export type ProcessImagesOptions = {
+  store: ImageStore;
+  page: Page;
+};
+
+/**
+ * Replace image URLs in the markdown body with public ImageStore URLs.
+ *
+ * Returns a per-page work record (counts + lint entries). The caller
+ * aggregates across pages; nothing is logged or mutated outside the
+ * returned value.
+ *
+ * `options.page` is used only for lint-report attribution (id + title).
+ */
+export async function processImagesInMarkdown(
+  markdown: string,
+  options: ProcessImagesOptions,
+): Promise<ImageWork> {
+  const { store, page } = options;
+  const replacements = new Map<string, string>();
+  const work: ImageWork = {
+    markdown,
     downloaded: 0,
     reused: 0,
     failed: [],
     bytes: 0,
     lint: [],
   };
-}
 
-/**
- * Replace image URLs in the markdown body with public ImageStore URLs.
- * Mutates the report with download counts and lint entries.
- *
- * pageId + pageTitle are used only for lint-report attribution.
- */
-export async function processImagesInMarkdown(
-  markdown: string,
-  store: ImageStore,
-  pageId: string,
-  pageTitle: string,
-  report: ImageReport,
-): Promise<string> {
-  const replacements = new Map<string, string>();
-
-  // Collect all image URLs from markdown image syntax and HTML media tags.
   const allUrls = new Set<string>();
-
-  for (const m of markdown.matchAll(IMAGE_RE)) {
-    allUrls.add(m[2]);
-  }
-  for (const m of markdown.matchAll(HTML_SRC_RE)) {
-    allUrls.add(m[1]);
-  }
+  for (const m of markdown.matchAll(IMAGE_RE)) allUrls.add(m[2]);
+  for (const m of markdown.matchAll(HTML_SRC_RE)) allUrls.add(m[1]);
 
   for (const url of allUrls) {
-    report.total += 1;
     const category = categorizeUrl(url);
 
     if (category !== "notion-hosted") {
       if (category === "file" || category === "bare-filename") {
-        report.lint.push({ pageId, pageTitle, category, url });
+        work.lint.push({
+          pageId: page.id,
+          pageTitle: page.title,
+          category,
+          url,
+        });
       }
       continue;
     }
 
     try {
       const res = await imageFetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buf = new Uint8Array(await res.arrayBuffer());
       const contentType = res.headers.get("content-type") ?? "";
       const ext = extFromContentType(contentType) ?? extFromUrl(url);
@@ -212,22 +213,21 @@ export async function processImagesInMarkdown(
       let publicUrl: string;
       if (await store.has(key)) {
         publicUrl = store.urlFor(key);
-        report.reused += 1;
+        work.reused += 1;
       } else {
         publicUrl = await store.put(key, buf, contentType);
-        report.downloaded += 1;
-        report.bytes += buf.length;
+        work.downloaded += 1;
+        work.bytes += buf.length;
       }
       replacements.set(url, publicUrl);
     } catch (err) {
-      report.failed.push({
+      work.failed.push({
         url,
         error: err instanceof Error ? err.message : String(err),
       });
     }
   }
 
-  // Apply replacements via two passes (markdown image syntax + HTML media tags).
   let out = markdown.replace(IMAGE_RE, (whole, alt: string, url: string) => {
     const replaced = replacements.get(url);
     return replaced ? `![${alt}](${replaced})` : whole;
@@ -239,5 +239,6 @@ export async function processImagesInMarkdown(
     return whole.replace(`src="${url}"`, `src="${replaced}"`);
   });
 
-  return out;
+  work.markdown = out;
+  return work;
 }

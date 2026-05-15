@@ -2,13 +2,15 @@
   // This file is not used in compilation. It is here just for a nice editor experience.
   "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
-    "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    // TypeScript 6.0 deprecates baseUrl. The Docusaurus shared tsconfig
+    // still uses it; silence until upstream removes it.
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "src/**/*",

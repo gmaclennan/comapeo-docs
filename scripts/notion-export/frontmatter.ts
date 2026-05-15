@@ -14,15 +14,12 @@ function escapeYamlString(value: string): string {
 }
 
 export type Frontmatter = {
-  /** Notion pageId. Becomes Docusaurus doc id so _category_.json link references work. */
-  id: string;
   title: string;
   description?: string;
 };
 
 export function renderFrontmatter(fm: Frontmatter): string {
   const lines: string[] = ["---"];
-  lines.push(`id: ${fm.id}`);
   lines.push(`title: ${escapeYamlString(fm.title)}`);
   if (fm.description !== undefined) {
     lines.push(`description: ${escapeYamlString(fm.description)}`);

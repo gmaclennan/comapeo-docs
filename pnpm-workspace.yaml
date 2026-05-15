@@ -1,0 +1,34 @@
+# pnpm workspace + security configuration.
+#
+# This file is single-package today; the pnpm-workspace.yaml exists to centralise
+# pnpm's supply-chain hardening settings recommended in
+# https://docusaurus.io/blog/releases/3.10.
+
+# Wait at least 4,320 minutes (3 days) before installing a newly-published version.
+# Mitigates installing a malicious package before npm has time to yank it.
+minimumReleaseAge: 4320
+
+# Reject "exotic" sub-dependencies (git/file/url specifiers) deep in the dep
+# tree, whose provenance can't be audited from package.json alone.
+blockExoticSubdeps: true
+
+# Refuse to run a dependency's install scripts unless it's listed in allowBuilds.
+# Stops a malicious postinstall script from running on `pnpm install`.
+strictDepBuilds: true
+
+# Packages whose install scripts are intentionally trusted. Add new entries
+# explicitly after auditing what the install script does.
+allowBuilds:
+  esbuild: true # bundler used by Docusaurus Faster
+  "@swc/core": true # transformer used by Docusaurus Faster
+  core-js: false
+  sharp: false
+
+# trustPolicy: no-downgrade was tried per the Docusaurus 3.10 example but
+# rejected too many widely-used transitive deps (semver@6.3.1, detect-port@1.6.1,
+# etc.) that pre-date npm provenance attestation. Re-enable when more of the
+# ecosystem has caught up to provenance.
+
+# Flat node_modules so Docusaurus's transitive @docusaurus/* deps + webpack's
+# server-bundle runtime resolve correctly. See note in .npmrc.
+nodeLinker: hoisted

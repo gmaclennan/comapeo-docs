@@ -177,6 +177,18 @@ const config: Config = {
   tagline: "Learn how to use the CoMapeo platform",
   favicon: "img/favicon.ico",
 
+  // Opt-in to all upcoming Docusaurus v4 breaking changes so we build for them
+  // from the start instead of retrofitting at the v4 release.
+  // See https://docusaurus.io/blog/releases/3.10
+  //
+  // Enables (per the 3.10 release notes):
+  //   - v4.siteStorageNamespacing — localStorage keys namespaced per site
+  //   - v4.fasterByDefault          — Rspack + SWC + LightningCSS by default
+  //   - v4.mdx1CompatDisabledByDefault — strict modern MDX (no MDX v1 compat)
+  future: {
+    v4: true,
+  },
+
   // Custom fields to pass environment variables to client-side code
   customFields: {
     defaultDocsPage: DEFAULT_DOCS_PAGE,
@@ -264,16 +276,9 @@ const config: Config = {
         ],
       },
     ],
-    [
-      "@docusaurus/plugin-ideal-image",
-      {
-        quality: 70,
-        max: 1030, // max resized image's size.
-        min: 640, // min resized image's size. if original is lower, use that size.
-        steps: 2, // the max number of images generated between min and max (inclusive)
-        disableInDev: false,
-      },
-    ],
+    // @docusaurus/plugin-ideal-image removed: pulls in `sharp`, whose native
+    // install scripts are denied by pnpm-workspace.yaml's supply-chain policy.
+    // Reinstate (with sharp allowed) only after a security review.
   ],
   presets: [
     [
