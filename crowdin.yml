@@ -21,8 +21,13 @@ files:
     translation: /i18n/%two_letters_code%/docusaurus-plugin-content-docs/current/**/%original_file_name%
     type: md
     parser_version: 6
-    # Defense in depth: the pipeline already emits only `title:` (and
-    # optionally `description:`); this catches any accidental additions.
+    # Denylist of known frontmatter fields Crowdin must never translate.
+    # The pipeline currently emits only `title:` (and optionally
+    # `description:`), so this list is dormant today; it exists so that
+    # if a future field with one of these names slips in via a stray
+    # frontmatter edit, Crowdin won't surface it as a translation unit.
+    # Note: protection is by *name* — a new field not in this list
+    # would still leak into Crowdin until added.
     excluded_front_matter_elements:
       - id
       - slug

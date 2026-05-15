@@ -81,7 +81,7 @@ async function main(): Promise<void> {
 }
 
 function runDirDiff(a: string, b: string): void {
-  const r = spawnSync("diff", ["-rN", "--brief", a, b], { encoding: "utf8" });
+  const r = spawnSync("diff", ["-rNu", a, b], { encoding: "utf8" });
   if (!r.stdout) {
     log("(no changes)");
     return;

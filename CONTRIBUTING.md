@@ -95,6 +95,11 @@ pnpm typecheck        # tsc --noEmit
 pnpm lint             # eslint src
 ```
 
+> `pnpm run prepare` sets `core.hooksPath` to `.githooks`. If you already
+> use a different hook manager (Husky, lefthook, your own scripts), skip
+> the `prepare` step and wire `.githooks/pre-commit` into your manager
+> yourself — it's a plain bash script with no dependencies.
+
 ### Pipeline commands
 
 ```bash

@@ -97,16 +97,21 @@ jobs:
           # create a new PR when none exists.
           existing=$(gh pr list --base published --head staging --state open --json number --jq '.[0].number // empty')
           if [ -z "$existing" ]; then
-            gh pr create \
-              --base published \
-              --head staging \
-              --title "Promote Notion sync to published" \
-              --body "Automated sync from the Notion page tree.
+            body_file=$(mktemp)
+            cat > "$body_file" <<EOF
+          Automated sync from the Notion page tree.
 
           See \`.github/workflows/notion-export.yml\` and the pipeline in \`scripts/notion-export/\`.
           Plan: \`.claude/skills/notion-markdown-export/tree-publish-plan.md\` §7.
 
-          Generated $(date -u +%Y-%m-%dT%H:%MZ)."
+          Generated $(date -u +%Y-%m-%dT%H:%MZ).
+          EOF
+            gh pr create \
+              --base published \
+              --head staging \
+              --title "Promote Notion sync to published" \
+              --body-file "$body_file"
+            rm -f "$body_file"
           else
             echo "PR #$existing already open; staging push updates it automatically."
           fi
