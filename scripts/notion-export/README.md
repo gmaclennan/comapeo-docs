@@ -12,10 +12,27 @@ pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af        # explicit root id
 pnpm notion:walk 360c90f22b6381b5a108c49dfb1ff9af --verbose
 pnpm notion:export                                       # full pipeline: walk → transform → write
 pnpm notion:export:dry-run                               # preview what would change (no repo writes for docs/redirects/manifest)
+pnpm lint:content                                        # scan docs/ for visible-failure markers (exit 1 if any)
 pnpm test scripts/notion-export                          # vitest
 ```
 
 `pnpm notion:export` is idempotent: rerunning with no Notion changes produces zero git diff.
+
+## Failure handling
+
+The pipeline never exits non-zero on content-quality issues. Instead it writes **visible markers** into the affected page so reviewers can see them on the staging Cloudflare preview:
+
+| Failure | Marker emitted |
+|---|---|
+| Broken cross-page link (`[text](pageId.md)` where target isn't a published page) | `<span data-notion-lint="broken-link" data-target="..." data-reason="...">⚠️ broken link</span>` |
+| Image fetch failure / unresolved `file://` / bare-filename ref | `<div data-notion-lint="missing-image" data-url="..." data-category="...">⚠️ Missing image</div>` |
+| Page truncated by the Notion API (only when `unknown_block_ids` is empty — see below) | `<div data-notion-lint="truncated">⚠️ Truncated by Notion API …</div>` |
+
+Truncation is only flagged when `unknown_block_ids.length === 0`. Notion sets `truncated: true` whenever any block was unrenderable (and `STRIP_TAGS` in `transform.ts` drops those anyway — they're usually editorial controls like buttons). Genuine content loss is the truncated-without-unknown-blocks case.
+
+The lint workflow (`.github/workflows/lint-content.yml`) greps for `data-notion-lint=` on the `staging → published` promotion PR and fails the check if any markers are present. The remark plugin at `src/plugins/notion-lint/` strips the markers in production builds so a marker that slips past lint (e.g. an admin overriding branch protection) doesn't ship to the deployed site.
+
+Structural failures (env missing, sibling-section slug collisions, multiple roots, Notion API exhausted retries) still hard-fail with `process.exit(1)` — those produce un-buildable output.
 
 ## Files
 
@@ -27,11 +44,13 @@ walk-tree.ts      walkNotionTree() returns Map<pageId, Page>; CLI when invoked d
 paths.ts          mutates Pages with relPath + dirSegments from ancestor chain
 transform.ts      Notion markdown → Docusaurus markdown via node-html-parser (HTML tags) + regex (inline)
 image-store.ts    ImageStore interface + LocalImageStore + makeImageStore factory (R2 swap-in point)
-images.ts         processImagesInMarkdown: extract → classify → download → rewrite; returns ImageWork
+images.ts         processImagesInMarkdown: extract → classify → download → rewrite; returns ImageWork. Failed/lint URLs get `data-notion-lint="missing-image"` markers.
 frontmatter.ts    emit minimal `title:` YAML
 category-json.ts  _category_.json per section dir; doc-id derived from page.relPath
 write-files.ts    glob, diff vs Pages map, write/move/delete in one inline pass
-index.ts          orchestrator: walkNotionTree → computePagePaths → renderPages → syncFilesystem → writeCategoryConfig
+validate.ts       cross-page link detection + applyBrokenLinkMarkers rewrite (`data-notion-lint="broken-link"`)
+lint.ts           pure marker-counting + CLI for `pnpm lint:content`
+index.ts          orchestrator: walkNotionTree → computePagePaths → renderPages → applyBrokenLinkMarkers → syncFilesystem → writeCategoryConfig → manifest → redirects
 logger.ts         tiny `[notion-export]` prefixed logger; --verbose / VERBOSE for debug
 ```
 

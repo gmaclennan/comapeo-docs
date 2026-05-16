@@ -32,6 +32,13 @@ const IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D|[^)]+)\)/g;
 // `<img>` is intentionally absent — Notion never emits it (SKILL.md §Media).
 const HTML_SRC_RE = /<(?:video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*\/?>/gi;
 
+// Full-element matcher (opening + content + matching close). Used by
+// `applyMissingImageMarkers` to swap the whole element for a marker div —
+// the src-only swap in `applyReplacements` would leave an orphaned
+// `cap</video>` tail when the element is replaced wholesale.
+const HTML_ELEMENT_RE =
+  /<(video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*>[\s\S]*?<\/\1\s*>/gi;
+
 // Standalone file:// URL matcher for the pre-resolution pass.
 const FILE_URL_IN_IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D)\)/g;
 
@@ -269,6 +276,71 @@ export function applyReplacements(
   return out;
 }
 
+export type MissingImageCategory =
+  | "fetch-failed"
+  | "file-unresolved"
+  | "bare-filename";
+
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export function missingImageMarker(
+  url: string,
+  category: MissingImageCategory,
+): string {
+  // Surround with blank lines so the block-level div doesn't end up nested
+  // inside a paragraph (MDX would warn) when the original image was inline.
+  return `\n\n<div data-notion-lint="missing-image" data-url="${escapeAttribute(url)}" data-category="${category}">⚠️ Missing image</div>\n\n`;
+}
+
+/**
+ * Replace every image reference whose URL is in `markers` with a visible
+ * `data-notion-lint="missing-image"` div. Pure rewrite — does no I/O.
+ *
+ * Pair with `applyReplacements`: run that first (rewrites successful
+ * downloads), then this (rewrites the failure URLs that were left in
+ * place). The two operate on disjoint URL sets so order is incidental but
+ * conventional.
+ */
+export function applyMissingImageMarkers(
+  markdown: string,
+  markers: Map<string, MissingImageCategory>,
+): string {
+  if (markers.size === 0) return markdown;
+
+  let out = markdown.replace(IMAGE_RE, (whole, _alt: string, url: string) => {
+    const category = markers.get(url);
+    return category ? missingImageMarker(url, category) : whole;
+  });
+
+  out = out.replace(HTML_ELEMENT_RE, (whole, _tag: string, url: string) => {
+    const category = markers.get(url);
+    return category ? missingImageMarker(url, category) : whole;
+  });
+
+  return out;
+}
+
+function buildMarkersMap(
+  failed: Array<{ url: string }>,
+  lint: ImageLint[],
+): Map<string, MissingImageCategory> {
+  const markers = new Map<string, MissingImageCategory>();
+  for (const f of failed) markers.set(f.url, "fetch-failed");
+  for (const l of lint) {
+    markers.set(
+      l.url,
+      l.category === "file" ? "file-unresolved" : "bare-filename",
+    );
+  }
+  return markers;
+}
+
 // === Orchestrator =======================================================
 
 /**
@@ -288,7 +360,9 @@ export async function processImagesInMarkdown(
   const refs = extractImageRefs(resolved.markdown);
   const { downloadable, lint } = classifyRefs(refs, options.page);
   const dl = await downloadAll(downloadable, options.store);
-  const out = applyReplacements(resolved.markdown, dl.replacements);
+  const markers = buildMarkersMap(dl.failed, lint);
+  let out = applyReplacements(resolved.markdown, dl.replacements);
+  out = applyMissingImageMarkers(out, markers);
 
   return {
     markdown: out,

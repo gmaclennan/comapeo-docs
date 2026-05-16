@@ -570,3 +570,34 @@ article {
 .theme-doc-footer {
   margin-bottom: 3rem;
 }
+
+/*
+ * notion-lint markers
+ *
+ * Emitted by the notion-export pipeline when it detects content-quality
+ * issues (broken cross-page links, image fetch failures, truncated pages).
+ * Visible on staging so reviewers see the issue on the Cloudflare preview;
+ * stripped by `src/plugins/notion-lint` when IS_PRODUCTION=true.
+ *
+ * The lint workflow greps committed `.md` files for `data-notion-lint=`
+ * and fails the staging→published promotion PR if any are present.
+ */
+[data-notion-lint] {
+  display: inline-block;
+  border: 2px dashed #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  font-weight: 600;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+}
+[data-notion-lint="missing-image"],
+[data-notion-lint="truncated"] {
+  display: block;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+[data-theme="dark"] [data-notion-lint] {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+}

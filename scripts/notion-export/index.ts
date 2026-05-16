@@ -7,11 +7,14 @@
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { env } from "./env.ts";
-import { error, log } from "./logger.ts";
-import { walkNotionTree, type Pages } from "./walk-tree.ts";
+import { error, log, warn } from "./logger.ts";
+import { walkNotionTree, type Page, type Pages } from "./walk-tree.ts";
 import { computePagePaths } from "./paths.ts";
 import { transformPageMarkdown } from "./transform.ts";
-import { processImagesInMarkdown } from "./images.ts";
+import {
+  processImagesInMarkdown,
+  type ImageLint,
+} from "./images.ts";
 import { makeImageStore, type ImageStore } from "./image-store.ts";
 import { renderPageFile } from "./frontmatter.ts";
 import { syncFilesystem } from "./write-files.ts";
@@ -26,7 +29,7 @@ import {
   writeHistory,
   type RedirectHistory,
 } from "./redirect-history.ts";
-import { validateCrossPageLinks } from "./validate.ts";
+import { applyBrokenLinkMarkers, validateCrossPageLinks } from "./validate.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 const DOCS_DIR = join(REPO_ROOT, "docs");
@@ -49,6 +52,7 @@ type RenderSummary = {
   imagesDownloaded: number;
   imagesReused: number;
   imagesFailed: Array<{ url: string; error: string }>;
+  imagesLint: ImageLint[];
   imagesBytes: number;
 };
 
@@ -66,6 +70,7 @@ async function renderPages(
     imagesDownloaded: 0,
     imagesReused: 0,
     imagesFailed: [],
+    imagesLint: [],
     imagesBytes: 0,
   };
 
@@ -84,10 +89,33 @@ async function renderPages(
     summary.imagesDownloaded += work.downloaded;
     summary.imagesReused += work.reused;
     summary.imagesFailed.push(...work.failed);
+    summary.imagesLint.push(...work.lint);
     summary.imagesBytes += work.bytes;
   }
 
   return summary;
+}
+
+// Truncation is only meaningful when the API didn't also flag unknown
+// blocks: unknown_block_ids covers Notion editorial controls (e.g. buttons)
+// that we deliberately strip, and their presence is what usually triggers
+// the truncated flag. Genuine content loss is `truncated && !unknownBlocks`.
+function isGenuinelyTruncated(page: Page): boolean {
+  return page.truncated && page.unknownBlockIds.length === 0;
+}
+
+const TRUNCATED_MARKER =
+  '\n\n<div data-notion-lint="truncated">⚠️ Truncated by Notion API — content may be incomplete.</div>\n';
+
+function appendTruncatedMarkers(pages: Pages): Page[] {
+  const truncated: Page[] = [];
+  for (const page of pages.values()) {
+    if (!page.body) continue;
+    if (!isGenuinelyTruncated(page)) continue;
+    page.body = page.body + TRUNCATED_MARKER;
+    truncated.push(page);
+  }
+  return truncated;
 }
 
 // === Orchestrator =======================================================
@@ -105,11 +133,30 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
   const tRender = performance.now();
   const render = await renderPages(pages, options);
   log(
-    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms (images: ${render.imagesDownloaded} downloaded, ${render.imagesReused} reused, ${render.imagesFailed.length} failed, ${(render.imagesBytes / 1024).toFixed(0)} KB)`,
+    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms (images: ${render.imagesDownloaded} downloaded, ${render.imagesReused} reused, ${render.imagesFailed.length} failed, ${render.imagesLint.length} lint, ${(render.imagesBytes / 1024).toFixed(0)} KB)`,
   );
   for (const f of render.imagesFailed) {
-    error(`image fetch failed: ${f.url} (${f.error})`);
+    warn(`image fetch failed: ${f.url} (${f.error})`);
   }
+  for (const l of render.imagesLint) {
+    warn(`image lint: ${l.category} — "${l.pageTitle}" (${l.url})`);
+  }
+
+  // Append a visible marker to pages truncated by the Notion API (excluding
+  // truncation that's just a side effect of stripped unknown blocks).
+  const truncated = appendTruncatedMarkers(pages);
+  for (const p of truncated) {
+    warn(`truncated by Notion API: "${p.title}" (${p.id})`);
+  }
+
+  // Detect broken cross-page links, then rewrite them in `page.body` to
+  // visible `data-notion-lint="broken-link"` spans so reviewers see the
+  // failure on the staging preview before merging the promotion PR.
+  const brokenLinks = validateCrossPageLinks(pages);
+  for (const b of brokenLinks) {
+    warn(`broken link: "${b.sourceTitle}" → ${b.targetPageId} (${b.reason})`);
+  }
+  applyBrokenLinkMarkers(pages, brokenLinks);
 
   const fs = await syncFilesystem(pages, { docsDir: options.docsDir });
   const categories = await writeCategoryConfig(pages, {
@@ -124,16 +171,8 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
   await writeHistory(history, options.historyPath);
   await writeRedirectsFile(redirects, options.redirectsPath);
 
-  // Fail-soft link validation: warn per broken cross-page link.
-  const brokenLinks = validateCrossPageLinks(pages);
-  for (const b of brokenLinks) {
-    log(
-      `broken link: "${b.sourceTitle}" → ${b.targetPageId} (${b.reason})`,
-    );
-  }
-
   log(
-    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; ${categories} _category_.json, ${redirects.length} redirects, ${brokenLinks.length} broken links`,
+    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; ${categories} _category_.json, ${redirects.length} redirects, ${brokenLinks.length} broken links, ${render.imagesFailed.length + render.imagesLint.length} missing images, ${truncated.length} truncated pages`,
   );
 
   return pages;

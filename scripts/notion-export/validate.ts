@@ -4,7 +4,9 @@
 //
 // Per tree-publish-plan §4 (Validation step): fail-soft. Emit a warning
 // per broken link; don't fail the pipeline. The orchestrator counts and
-// summarises.
+// summarises, and `applyBrokenLinkMarkers` rewrites each broken ref into
+// a `data-notion-lint="broken-link"` span so reviewers see the failure on
+// the staging preview.
 
 import type { Pages } from "./walk-tree.ts";
 
@@ -47,4 +49,34 @@ export function validateCrossPageLinks(pages: Pages): BrokenLink[] {
   }
 
   return broken;
+}
+
+/**
+ * Rewrite each broken `[text](pageId.md)` reference in `page.body` to a
+ * visible marker span. The lint workflow greps for `data-notion-lint=`
+ * and fails the staging→published promotion PR if any are present; the
+ * production Docusaurus build strips the markers via the notion-lint
+ * remark plugin.
+ *
+ * `broken` is the report from `validateCrossPageLinks`; this function
+ * uses it to drive an in-place rewrite. Targets not in `broken` keep
+ * their normal markdown link.
+ */
+export function applyBrokenLinkMarkers(
+  pages: Pages,
+  broken: BrokenLink[],
+): void {
+  const reasonByPair = new Map<string, BrokenLink["reason"]>();
+  for (const b of broken) {
+    reasonByPair.set(`${b.sourcePageId}:${b.targetPageId}`, b.reason);
+  }
+
+  for (const page of pages.values()) {
+    if (!page.body) continue;
+    page.body = page.body.replace(LINK_RE, (whole, _text: string, targetId: string) => {
+      const reason = reasonByPair.get(`${page.id}:${targetId}`);
+      if (!reason) return whole;
+      return `<span data-notion-lint="broken-link" data-target="${targetId}" data-reason="${reason}">⚠️ broken link</span>`;
+    });
+  }
 }

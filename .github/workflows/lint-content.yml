@@ -1,0 +1,39 @@
+name: Lint content
+
+# Gates the staging → published promotion PR. Greps `docs/**/*.{md,mdx}` for
+# `data-notion-lint=` markers emitted by the notion-export pipeline; fails if
+# any are present. Operates on committed markdown — no NOTION_API_KEY needed.
+#
+# See `scripts/notion-export/lint.ts` and `src/plugins/notion-lint/README.md`
+# for the marker contract.
+
+on:
+  pull_request:
+    branches: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-content-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint:content

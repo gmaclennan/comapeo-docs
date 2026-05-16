@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  applyMissingImageMarkers,
   applyReplacements,
   categorizeUrl,
   classifyRefs,
   extractImageRefs,
+  missingImageMarker,
   resolveFileUrls,
 } from "./images.ts";
 import type { Page } from "./walk-tree.ts";
@@ -259,5 +261,71 @@ describe("applyReplacements", () => {
   it("is a no-op when the map is empty", () => {
     const md = "![](https://a.example/x.png)";
     expect(applyReplacements(md, new Map())).toBe(md);
+  });
+});
+
+describe("applyMissingImageMarkers", () => {
+  it("replaces a markdown image whose URL is in markers", () => {
+    const url = "https://a.example/x.png";
+    const md = `![alt](${url})`;
+    const out = applyMissingImageMarkers(
+      md,
+      new Map([[url, "fetch-failed"]]),
+    );
+    expect(out).toContain('data-notion-lint="missing-image"');
+    expect(out).toContain(`data-url="${url}"`);
+    expect(out).toContain('data-category="fetch-failed"');
+    expect(out).not.toContain(`![alt](${url})`);
+  });
+
+  it("replaces a full <video|audio|file|pdf> element including its close tag", () => {
+    const url = "https://a.example/v.mp4";
+    const md = `<video src="${url}">cap</video>`;
+    const out = applyMissingImageMarkers(
+      md,
+      new Map([[url, "fetch-failed"]]),
+    );
+    expect(out).toContain('data-notion-lint="missing-image"');
+    expect(out).not.toContain("<video");
+    expect(out).not.toContain("</video>");
+  });
+
+  it("leaves URLs not in the markers map untouched", () => {
+    const md = "![a](https://stay.example/x.png) ![b](https://fail.example/y.png)";
+    const out = applyMissingImageMarkers(
+      md,
+      new Map([["https://fail.example/y.png", "fetch-failed"]]),
+    );
+    expect(out).toContain("![a](https://stay.example/x.png)");
+    expect(out).toContain('data-url="https://fail.example/y.png"');
+    expect(out).not.toContain("![b](https://fail.example/y.png)");
+  });
+
+  it("is a no-op when the markers map is empty", () => {
+    const md = "![](https://a.example/x.png)";
+    expect(applyMissingImageMarkers(md, new Map())).toBe(md);
+  });
+
+  it("HTML-escapes special characters in data-url", () => {
+    const url = 'https://a.example/x.png?q="&<>';
+    const out = missingImageMarker(url, "fetch-failed");
+    expect(out).toContain("&amp;");
+    expect(out).toContain("&quot;");
+    expect(out).toContain("&lt;");
+    expect(out).toContain("&gt;");
+  });
+
+  it("emits the three categories correctly", () => {
+    const cases: Array<[
+      Parameters<typeof missingImageMarker>[1],
+      string,
+    ]> = [
+      ["fetch-failed", 'data-category="fetch-failed"'],
+      ["file-unresolved", 'data-category="file-unresolved"'],
+      ["bare-filename", 'data-category="bare-filename"'],
+    ];
+    for (const [cat, expected] of cases) {
+      expect(missingImageMarker("x", cat)).toContain(expected);
+    }
   });
 });

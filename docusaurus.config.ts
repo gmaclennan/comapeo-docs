@@ -3,6 +3,7 @@ import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 import dotenv from "dotenv";
 import { parseFrontMatterWithSlug } from "./src/plugins/canonical-slugs/parse-frontmatter";
+import { stripNotionLintMarkers } from "./src/plugins/notion-lint/strip-markers";
 
 dotenv.config();
 
@@ -88,6 +89,11 @@ const config: Config = {
           // Editing happens in Notion, not GitHub — `editUrl` is omitted so
           // the "Edit this page" link is not rendered. Slugs are injected
           // by the canonical-slug hook (markdown.parseFrontMatter above).
+          //
+          // In production, strip notion-lint markers so the deployed site
+          // stays visually clean even if a PR with markers slips past the
+          // lint workflow (see src/plugins/notion-lint).
+          remarkPlugins: isProduction ? [stripNotionLintMarkers] : [],
         },
         theme: { customCss: "./src/css/custom.css" },
         sitemap: isProduction

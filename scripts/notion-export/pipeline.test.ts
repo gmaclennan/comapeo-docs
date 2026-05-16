@@ -55,14 +55,17 @@ const blocks: Record<string, unknown> = {
   },
 };
 
+type FixtureFlags = { truncated?: boolean; unknown_block_ids?: string[] };
+const fixtureFlags: Record<string, FixtureFlags> = {};
+
 vi.mock("./fetch.ts", () => ({
   normalizePageId: (id: string) => id.replace(/-/g, "").toLowerCase(),
   fetchPageMarkdown: vi.fn(async (id: string) => ({
     object: "page_markdown",
     id,
     markdown: fixtures[id]?.markdown ?? "",
-    truncated: false,
-    unknown_block_ids: [],
+    truncated: fixtureFlags[id]?.truncated ?? false,
+    unknown_block_ids: fixtureFlags[id]?.unknown_block_ids ?? [],
   })),
   fetchPageMeta: vi.fn(async (id: string) => ({
     object: "page",
@@ -232,6 +235,72 @@ describe("runExport (pipeline integration)", () => {
       await readFile(join(opts.docsDir, "overview", `${ARTICLE}.md`), "utf8"),
     ).toBe(first.article);
   });
+
+  it("appends a truncated marker when the API truncates with no unknown blocks", async () => {
+    fixtureFlags[ARTICLE] = { truncated: true, unknown_block_ids: [] };
+    try {
+      const { runExport } = await import("./index.ts");
+      const opts = await newOpts(tmp);
+      await runExport(opts);
+      const article = await readFile(
+        join(opts.docsDir, "overview", `${ARTICLE}.md`),
+        "utf8",
+      );
+      expect(article).toContain('data-notion-lint="truncated"');
+    } finally {
+      delete fixtureFlags[ARTICLE];
+    }
+  });
+
+  it("does not append a truncated marker when unknown blocks caused the truncation", async () => {
+    fixtureFlags[ARTICLE] = {
+      truncated: true,
+      unknown_block_ids: ["b1", "b2"],
+    };
+    try {
+      const { runExport } = await import("./index.ts");
+      const opts = await newOpts(tmp);
+      await runExport(opts);
+      const article = await readFile(
+        join(opts.docsDir, "overview", `${ARTICLE}.md`),
+        "utf8",
+      );
+      expect(article).not.toContain('data-notion-lint="truncated"');
+    } finally {
+      delete fixtureFlags[ARTICLE];
+    }
+  });
+
+  it("rewrites cross-page links to broken-link markers when target is missing", async () => {
+    const ORPHAN = "99999999999999999999999999999999";
+    const original = fixtures[ARTICLE];
+    fixtures[ARTICLE] = {
+      ...original,
+      markdown:
+        original.markdown +
+        `\nSee <mention-page url="https://www.notion.so/${ORPHAN}"/> for details.\n`,
+    };
+    try {
+      const { runExport } = await import("./index.ts");
+      const opts = await newOpts(tmp);
+      await runExport(opts);
+      const article = await readFile(
+        join(opts.docsDir, "overview", `${ARTICLE}.md`),
+        "utf8",
+      );
+      expect(article).toContain('data-notion-lint="broken-link"');
+      expect(article).toContain(`data-target="${ORPHAN}"`);
+      expect(article).toContain('data-reason="target-not-in-tree"');
+    } finally {
+      fixtures[ARTICLE] = original;
+    }
+  });
+
+  // Missing-image substitution at the pipeline level isn't tested here:
+  // `imageFetch` in `images.ts` captures `globalThis.fetch` at module-eval
+  // time, and `vi.resetModules()` to swap mocks per-test poisons subsequent
+  // tests' module cache. The unit tests in `images.test.ts` (`applyMissingImageMarkers`,
+  // `applyReplacements`) cover the marker rewrite behaviour directly.
 
   it("appends a prior-slug redirect when the article title changes", async () => {
     const { runExport } = await import("./index.ts");
