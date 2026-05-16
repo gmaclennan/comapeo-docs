@@ -26,7 +26,8 @@ parse.ts          pure regex helpers for <page> / <mention-page> tag IDs
 walk-tree.ts      walkNotionTree() returns Map<pageId, Page>; CLI when invoked directly
 paths.ts          mutates Pages with relPath + dirSegments from ancestor chain
 transform.ts      Notion markdown → Docusaurus markdown via node-html-parser (HTML tags) + regex (inline)
-images.ts         ImageStore interface + LocalImageStore; processImagesInMarkdown returns ImageWork
+image-store.ts    ImageStore interface + LocalImageStore + makeImageStore factory (R2 swap-in point)
+images.ts         processImagesInMarkdown: extract → classify → download → rewrite; returns ImageWork
 frontmatter.ts    emit minimal `title:` YAML
 category-json.ts  _category_.json per section dir; doc-id derived from page.relPath
 write-files.ts    glob, diff vs Pages map, write/move/delete in one inline pass

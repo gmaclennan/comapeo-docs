@@ -1,86 +1,78 @@
-// Image (and file) handling per transforms-plan §5.
+// Per-page image handling: discover → categorize → download → rewrite.
 //
-// Pluggable ImageStore interface. Currently only LocalImageStore is implemented.
-// R2ImageStore is mentioned in the plan as a future swap-in without changing
-// the transform layer.
+// Notion's Markdown Content API emits image refs in two shapes:
+//   - `![alt](url)` for image blocks (99.3% of refs in the CoMapeo corpus)
+//   - `<video|audio|file|pdf src="...">` for other media (rare; corpus showed
+//     one each, all external). Notion never emits `<img>`.
 //
-// URLs are categorized per transforms-plan §12 before download:
-//   - notion-hosted: download to ImageStore, rewrite URL to public path
+// URLs are categorized per transforms-plan §12:
+//   - notion-hosted: download via ImageStore, rewrite URL to public path
 //   - external: leave alone (wikipedia, public CDN, etc.)
-//   - file:// : pre-resolve via block API (see resolveFileUrls) into a
-//     Notion-hosted S3 URL; resolver failures fall through to lint-warning
-//   - bare-filename: log warning, leave alone (broken; pre-existing data hygiene issue)
+//   - file://: pre-resolved via resolveFileUrls (block API). Resolver failures
+//     fall through to the lint branch.
+//   - bare-filename: lint warning, leave alone (pre-existing data hygiene).
+//
+// See SKILL.md §Media and findings.md for the empirical basis.
 
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname } from "node:path";
 import { pipeline, withConcurrency, withRetry } from "fetch-extras";
 import { fetchBlock } from "./fetch.ts";
 import { resolveFileAttachmentUrl } from "./file-attachments.ts";
+import type { ImageStore } from "./image-store.ts";
 import type { Page } from "./walk-tree.ts";
 
-export interface ImageStore {
-  /** Has an object with this key already been stored? */
-  has(key: string): Promise<boolean>;
-  /** Store the bytes; return the PUBLIC URL the image will be served at. */
-  put(key: string, bytes: Uint8Array, contentType: string): Promise<string>;
-  /** Resolve a key to its public URL without I/O. */
-  urlFor(key: string): string;
-}
+// === Regexes ============================================================
 
-export class LocalImageStore implements ImageStore {
-  private outDir: string;
-  private publicPrefix: string;
-
-  constructor(outDir: string, publicPrefix: string) {
-    this.outDir = outDir;
-    this.publicPrefix = publicPrefix;
-  }
-
-  async has(key: string): Promise<boolean> {
-    return existsSync(join(this.outDir, key));
-  }
-
-  async put(
-    key: string,
-    bytes: Uint8Array,
-    _contentType: string,
-  ): Promise<string> {
-    await mkdir(this.outDir, { recursive: true });
-    await writeFile(join(this.outDir, key), bytes);
-    return this.urlFor(key);
-  }
-
-  urlFor(key: string): string {
-    return `${this.publicPrefix}/${key}`;
-  }
-}
-
-/**
- * Factory: returns LocalImageStore for now. When R2_ACCOUNT_ID is set in env,
- * swap in R2ImageStore (not yet implemented).
- */
-export function makeImageStore(): ImageStore {
-  return new LocalImageStore("static/images/notion", "/images/notion");
-}
-
-// Markdown image URL matcher. Two alternatives because file:// URLs from
-// Notion contain unescaped `(` and `)` in filenames (e.g. `_a_la(s).png`)
-// — the simple `[^)]+` would truncate mid-URL. file:// URLs always end with
-// the URL-encoded JSON close `%7D`, so we anchor on that.
+// Two alternatives because file:// URLs from Notion contain unescaped `(`/`)`
+// in filenames (e.g. `_a_la(s).png`); the simple `[^)]+` would truncate
+// mid-URL. file:// URLs always end with the URL-encoded JSON close `%7D`.
 const IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D|[^)]+)\)/g;
 
-const HTML_SRC_RE = /<(?:img|video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*\/?>/gi;
+// `<img>` is intentionally absent — Notion never emits it (SKILL.md §Media).
+const HTML_SRC_RE = /<(?:video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*\/?>/gi;
 
 // Standalone file:// URL matcher for the pre-resolution pass.
 const FILE_URL_IN_IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D)\)/g;
+
+// === Types ==============================================================
 
 export type UrlCategory =
   | "notion-hosted"
   | "external"
   | "file"
   | "bare-filename";
+
+export type ImageRef = {
+  url: string;
+  syntax: "markdown" | "html";
+};
+
+type DownloadableRef = ImageRef & { category: "notion-hosted" };
+
+export type ImageLint = {
+  pageId: string;
+  pageTitle: string;
+  category: UrlCategory;
+  url: string;
+};
+
+export type ImageWork = {
+  /** Markdown with notion-hosted image URLs rewritten to public store URLs. */
+  markdown: string;
+  downloaded: number;
+  reused: number;
+  failed: Array<{ url: string; error: string }>;
+  bytes: number;
+  lint: ImageLint[];
+};
+
+export type ProcessImagesOptions = {
+  store: ImageStore;
+  page: Page;
+};
+
+// === Pure helpers =======================================================
 
 export function categorizeUrl(url: string): UrlCategory {
   if (url.startsWith("file:")) return "file";
@@ -99,6 +91,59 @@ export function categorizeUrl(url: string): UrlCategory {
   } catch {
     return "bare-filename";
   }
+}
+
+/**
+ * Extract every image/media URL reference from a page's markdown. Duplicates
+ * are returned (one entry per occurrence) — de-duplication happens during
+ * download, but lint reporting wants every occurrence.
+ */
+export function extractImageRefs(markdown: string): ImageRef[] {
+  const refs: ImageRef[] = [];
+  for (const m of markdown.matchAll(IMAGE_RE)) {
+    refs.push({ url: m[2], syntax: "markdown" });
+  }
+  for (const m of markdown.matchAll(HTML_SRC_RE)) {
+    refs.push({ url: m[1], syntax: "html" });
+  }
+  return refs;
+}
+
+/**
+ * Split image refs into a download list (notion-hosted only) plus a lint
+ * list (file:// that didn't resolve, bare filenames). External URLs are
+ * pass-through and don't need either; they're dropped here.
+ *
+ * Notion-hosted refs are de-duped — one entry per unique URL — so the
+ * caller can use a Map. Lint entries preserve every occurrence.
+ */
+export function classifyRefs(
+  refs: ImageRef[],
+  page: Page,
+): { downloadable: DownloadableRef[]; lint: ImageLint[] } {
+  const downloadable: DownloadableRef[] = [];
+  const seen = new Set<string>();
+  const lint: ImageLint[] = [];
+
+  for (const ref of refs) {
+    const category = categorizeUrl(ref.url);
+    if (category === "notion-hosted") {
+      if (seen.has(ref.url)) continue;
+      seen.add(ref.url);
+      downloadable.push({ ...ref, category });
+      continue;
+    }
+    if (category === "file" || category === "bare-filename") {
+      lint.push({
+        pageId: page.id,
+        pageTitle: page.title,
+        category,
+        url: ref.url,
+      });
+    }
+  }
+
+  return { downloadable, lint };
 }
 
 function extFromContentType(contentType: string | null): string | null {
@@ -146,27 +191,85 @@ const imageFetch = pipeline(
   withRetry({ retries: 2 }),
 );
 
-export type ImageLint = {
-  pageId: string;
-  pageTitle: string;
-  category: UrlCategory;
-  url: string;
-};
-
-export type ImageWork = {
-  /** Markdown with notion-hosted image URLs rewritten to public store URLs. */
-  markdown: string;
+export type DownloadResult = {
+  replacements: Map<string, string>;
   downloaded: number;
   reused: number;
-  failed: Array<{ url: string; error: string }>;
   bytes: number;
-  lint: ImageLint[];
+  failed: Array<{ url: string; error: string }>;
 };
 
-export type ProcessImagesOptions = {
-  store: ImageStore;
-  page: Page;
-};
+/**
+ * Fetch every downloadable ref, content-address it, store via the
+ * ImageStore, and return a `oldUrl → publicUrl` replacement map.
+ */
+export async function downloadAll(
+  refs: DownloadableRef[],
+  store: ImageStore,
+): Promise<DownloadResult> {
+  const result: DownloadResult = {
+    replacements: new Map(),
+    downloaded: 0,
+    reused: 0,
+    bytes: 0,
+    failed: [],
+  };
+
+  for (const ref of refs) {
+    try {
+      const res = await imageFetch(ref.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const contentType = res.headers.get("content-type") ?? "";
+      const ext = extFromContentType(contentType) ?? extFromUrl(ref.url);
+      const sha = createHash("sha256").update(buf).digest("hex").slice(0, 12);
+      const key = `${sha}${ext}`;
+
+      let publicUrl: string;
+      if (await store.has(key)) {
+        publicUrl = store.urlFor(key);
+        result.reused += 1;
+      } else {
+        publicUrl = await store.put(key, buf, contentType);
+        result.downloaded += 1;
+        result.bytes += buf.length;
+      }
+      result.replacements.set(ref.url, publicUrl);
+    } catch (err) {
+      result.failed.push({
+        url: ref.url,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Rewrite the page body using the `oldUrl → publicUrl` map. Both markdown
+ * `![alt](url)` and HTML `<video|audio|file|pdf src="url">` syntaxes are
+ * substituted in place; any URL not in the map is left untouched.
+ */
+export function applyReplacements(
+  markdown: string,
+  replacements: Map<string, string>,
+): string {
+  let out = markdown.replace(IMAGE_RE, (whole, alt: string, url: string) => {
+    const replaced = replacements.get(url);
+    return replaced ? `![${alt}](${replaced})` : whole;
+  });
+
+  out = out.replace(HTML_SRC_RE, (whole, url: string) => {
+    const replaced = replacements.get(url);
+    if (!replaced) return whole;
+    return whole.replace(`src="${url}"`, `src="${replaced}"`);
+  });
+
+  return out;
+}
+
+// === Orchestrator =======================================================
 
 /**
  * Replace image URLs in the markdown body with public ImageStore URLs.
@@ -181,84 +284,20 @@ export async function processImagesInMarkdown(
   markdown: string,
   options: ProcessImagesOptions,
 ): Promise<ImageWork> {
-  const { store, page } = options;
-  const replacements = new Map<string, string>();
-  const work: ImageWork = {
-    markdown,
-    downloaded: 0,
-    reused: 0,
-    failed: [],
-    bytes: 0,
-    lint: [],
-  };
-
-  // Pre-pass: resolve file:// URLs to Notion-hosted S3 URLs via the block
-  // API. If the resolver returns null (malformed, missing block, etc.), the
-  // URL stays as `file://...` and falls through to the lint-warning branch
-  // below — same fallback behaviour as before this pass existed.
   const resolved = await resolveFileUrls(markdown);
-  markdown = resolved.markdown;
-  work.markdown = markdown;
+  const refs = extractImageRefs(resolved.markdown);
+  const { downloadable, lint } = classifyRefs(refs, options.page);
+  const dl = await downloadAll(downloadable, options.store);
+  const out = applyReplacements(resolved.markdown, dl.replacements);
 
-  const allUrls = new Set<string>();
-  for (const m of markdown.matchAll(IMAGE_RE)) allUrls.add(m[2]);
-  for (const m of markdown.matchAll(HTML_SRC_RE)) allUrls.add(m[1]);
-
-  for (const url of allUrls) {
-    const category = categorizeUrl(url);
-
-    if (category !== "notion-hosted") {
-      if (category === "file" || category === "bare-filename") {
-        work.lint.push({
-          pageId: page.id,
-          pageTitle: page.title,
-          category,
-          url,
-        });
-      }
-      continue;
-    }
-
-    try {
-      const res = await imageFetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buf = new Uint8Array(await res.arrayBuffer());
-      const contentType = res.headers.get("content-type") ?? "";
-      const ext = extFromContentType(contentType) ?? extFromUrl(url);
-      const sha = createHash("sha256").update(buf).digest("hex").slice(0, 12);
-      const key = `${sha}${ext}`;
-
-      let publicUrl: string;
-      if (await store.has(key)) {
-        publicUrl = store.urlFor(key);
-        work.reused += 1;
-      } else {
-        publicUrl = await store.put(key, buf, contentType);
-        work.downloaded += 1;
-        work.bytes += buf.length;
-      }
-      replacements.set(url, publicUrl);
-    } catch (err) {
-      work.failed.push({
-        url,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  let out = markdown.replace(IMAGE_RE, (whole, alt: string, url: string) => {
-    const replaced = replacements.get(url);
-    return replaced ? `![${alt}](${replaced})` : whole;
-  });
-
-  out = out.replace(HTML_SRC_RE, (whole, url: string) => {
-    const replaced = replacements.get(url);
-    if (!replaced) return whole;
-    return whole.replace(`src="${url}"`, `src="${replaced}"`);
-  });
-
-  work.markdown = out;
-  return work;
+  return {
+    markdown: out,
+    downloaded: dl.downloaded,
+    reused: dl.reused,
+    failed: dl.failed,
+    bytes: dl.bytes,
+    lint,
+  };
 }
 
 /**

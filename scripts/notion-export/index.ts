@@ -11,11 +11,8 @@ import { error, log } from "./logger.ts";
 import { walkNotionTree, type Pages } from "./walk-tree.ts";
 import { computePagePaths } from "./paths.ts";
 import { transformPageMarkdown } from "./transform.ts";
-import {
-  makeImageStore,
-  processImagesInMarkdown,
-  type ImageStore,
-} from "./images.ts";
+import { processImagesInMarkdown } from "./images.ts";
+import { makeImageStore, type ImageStore } from "./image-store.ts";
 import { renderPageFile } from "./frontmatter.ts";
 import { syncFilesystem } from "./write-files.ts";
 import { writeCategoryConfig } from "./category-json.ts";

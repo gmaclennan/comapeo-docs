@@ -16,7 +16,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "./env.ts";
 import { error, log } from "./logger.ts";
-import { makeImageStore } from "./images.ts";
+import { makeImageStore } from "./image-store.ts";
 import { runExport } from "./index.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");

@@ -112,11 +112,11 @@ type RunOpts = {
   manifestPath: string;
   redirectsPath: string;
   historyPath: string;
-  imageStore: import("./images.ts").ImageStore;
+  imageStore: import("./image-store.ts").ImageStore;
 };
 
 async function newOpts(tmp: string, overrides: Partial<RunOpts> = {}): Promise<RunOpts> {
-  const { LocalImageStore } = await import("./images.ts");
+  const { LocalImageStore } = await import("./image-store.ts");
   return {
     rootId: ROOT,
     docsDir: join(tmp, "docs"),
