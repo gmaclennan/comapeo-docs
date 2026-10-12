@@ -1,13 +1,16 @@
 import globals from "globals";
 import pluginJs from "@eslint/js";
 import tseslint from "typescript-eslint";
-import pluginReact from "eslint-plugin-react";
+import eslintReact from "@eslint-react/eslint-plugin";
 import docusaurusPlugin from "@docusaurus/eslint-plugin";
-import importPlugin from "eslint-plugin-import";
+import { importX } from "eslint-plugin-import-x";
+import { createTypeScriptImportResolver } from "eslint-import-resolver-typescript";
 import promisePlugin from "eslint-plugin-promise";
 import securityPlugin from "eslint-plugin-security";
 import prettierPlugin from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
+
+const reactConfig = eslintReact.configs["recommended-typescript"];
 
 /** @type {import('eslint').Linter.FlatConfig[]} */
 const eslintConfig = [
@@ -45,23 +48,17 @@ const eslintConfig = [
   {
     files: ["src/**/*.{js,mjs,cjs,ts,jsx,tsx}"],
     plugins: {
+      ...reactConfig.plugins,
       "@docusaurus": docusaurusPlugin,
-      react: pluginReact,
     },
-    settings: {
-      react: {
-        version: "detect",
-      },
-    },
+    settings: reactConfig.settings,
     rules: {
-      ...pluginReact.configs.flat.recommended.rules,
+      ...reactConfig.rules,
       ...docusaurusPlugin.configs.recommended.rules,
       "@docusaurus/no-untranslated-text": [
         "warn",
         { ignoredStrings: ["·", "—", "×"] },
       ],
-      "react/react-in-jsx-scope": "off",
-      "react/prop-types": "off",
     },
   },
 
@@ -87,18 +84,15 @@ const eslintConfig = [
   {
     files: ["scripts/**/*.{js,mjs,cjs,ts}"],
     plugins: {
-      import: importPlugin,
+      "import-x": importX,
       promise: promisePlugin,
       security: securityPlugin,
     },
     settings: {
-      "import/resolver": {
-        typescript: true,
-        node: true,
-      },
+      "import-x/resolver-next": [createTypeScriptImportResolver()],
     },
     rules: {
-      ...importPlugin.configs.recommended.rules,
+      ...importX.flatConfigs.recommended.rules,
       ...promisePlugin.configs.recommended.rules,
       ...securityPlugin.configs.recommended.rules,
       // Pipeline tooling intentionally uses dynamic file paths

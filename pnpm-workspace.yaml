@@ -23,6 +23,7 @@ allowBuilds:
   "@swc/core": true # transformer used by Docusaurus Faster
   core-js: false
   sharp: false
+  unrs-resolver: false # native binding ships as an optional dep; postinstall only re-checks it
 
 # trustPolicy: no-downgrade was tried per the Docusaurus 3.10 example but
 # rejected too many widely-used transitive deps (semver@6.3.1, detect-port@1.6.1,
