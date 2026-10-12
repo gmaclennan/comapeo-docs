@@ -20,7 +20,8 @@
 // Each value is a chronological list of canonical-slug prefixes (everything
 // before the `-<pageId>` suffix). The most recent entry is the current one.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
 export type LocaleCode = "en" | "es" | "pt";
 
@@ -30,6 +31,20 @@ const LOCALES: LocaleCode[] = ["en", "es", "pt"];
 
 export function emptyHistory(): RedirectHistory {
   return {};
+}
+
+/** Deep-clone the history (one level of per-locale arrays). Used to keep
+ *  `buildRedirects` pure: it mutates its working copy, never its input. */
+export function cloneHistory(history: RedirectHistory): RedirectHistory {
+  const out: RedirectHistory = {};
+  for (const [id, perLocale] of Object.entries(history)) {
+    out[id] = {
+      en: [...perLocale.en],
+      es: [...perLocale.es],
+      pt: [...perLocale.pt],
+    };
+  }
+  return out;
 }
 
 export async function readHistory(path: string): Promise<RedirectHistory> {
@@ -50,6 +65,7 @@ export async function writeHistory(
   for (const id of Object.keys(history).sort()) {
     sorted[id] = history[id];
   }
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(sorted, null, 2) + "\n", "utf8");
 }
 

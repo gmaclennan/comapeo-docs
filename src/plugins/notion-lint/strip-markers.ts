@@ -11,6 +11,13 @@
 // the normal case with `future.v4: true` strict MDX) and raw HTML nodes
 // (fallback for legacy MDX modes).
 //
+// CONTRACT: markers MUST appear as element nodes in `children` position,
+// not inside `mdxJsxAttribute.value` expressions (e.g. as a component
+// prop). The walker visits `node.children` only; markers buried in
+// attribute-value JSX would slip through. The pipeline never emits this
+// shape today (all markers are direct elements), so this is documentation,
+// not a known bug.
+//
 // Pure tree mutation, no I/O. Safe to call on any MDAST root.
 
 type AnyNode = {

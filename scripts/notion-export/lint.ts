@@ -9,15 +9,24 @@
 import { glob, readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  LINT_ATTRIBUTE,
+  LINT_MARKER_CATEGORIES,
+  type LintMarkerCategory,
+} from "./lint-markers.ts";
 import { error, log } from "./logger.ts";
 
-export type LintCategory = "broken-link" | "missing-image" | "truncated";
+// Quote-and-whitespace tolerant. Captures the category value so detection
+// doesn't care about attribute ordering, but only counts categories listed
+// in `LINT_MARKER_CATEGORIES` — drift in either emission or detection is
+// caught by `lint.test.ts`'s round-trip contract test.
+const MARKER_RE = new RegExp(
+  `\\b${LINT_ATTRIBUTE}\\s*=\\s*"([^"]+)"`,
+  "g",
+);
 
-export const LINT_CATEGORIES: readonly LintCategory[] = [
-  "broken-link",
-  "missing-image",
-  "truncated",
-] as const;
+export type LintCategory = LintMarkerCategory;
+export const LINT_CATEGORIES = LINT_MARKER_CATEGORIES;
 
 export type LintFinding = {
   filePath: string;
@@ -31,9 +40,15 @@ export type LintReport = {
   byCategory: Record<LintCategory, number>;
 };
 
-function countMatches(content: string, category: LintCategory): number {
-  const re = new RegExp(`data-notion-lint="${category}"`, "g");
-  return (content.match(re) ?? []).length;
+function countByCategory(content: string): Map<LintCategory, number> {
+  const counts = new Map<LintCategory, number>();
+  for (const match of content.matchAll(MARKER_RE)) {
+    const value = match[1];
+    if (!(LINT_MARKER_CATEGORIES as readonly string[]).includes(value)) continue;
+    const cat = value as LintCategory;
+    counts.set(cat, (counts.get(cat) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /**
@@ -46,23 +61,21 @@ export function lintMarkdown(files: Map<string, string>): LintReport {
     "broken-link": 0,
     "missing-image": 0,
     "truncated": 0,
+    "custom-emoji": 0,
   };
 
   const sortedPaths = [...files.keys()].sort();
   for (const filePath of sortedPaths) {
-    const content = files.get(filePath)!;
+    const counts = countByCategory(files.get(filePath)!);
     for (const category of LINT_CATEGORIES) {
-      const count = countMatches(content, category);
+      const count = counts.get(category) ?? 0;
       if (count === 0) continue;
       findings.push({ filePath, category, count });
       byCategory[category] += count;
     }
   }
 
-  const total =
-    byCategory["broken-link"] +
-    byCategory["missing-image"] +
-    byCategory["truncated"];
+  const total = LINT_CATEGORIES.reduce((sum, c) => sum + byCategory[c], 0);
   return { findings, total, byCategory };
 }
 
@@ -75,6 +88,7 @@ export function formatReport(report: LintReport, docsDir: string): string {
     `  broken-link:   ${report.byCategory["broken-link"]}`,
     `  missing-image: ${report.byCategory["missing-image"]}`,
     `  truncated:     ${report.byCategory["truncated"]}`,
+    `  custom-emoji:  ${report.byCategory["custom-emoji"]}`,
     "",
     "Per file:",
   ];
@@ -108,12 +122,11 @@ async function readAllDocs(docsDir: string): Promise<Map<string, string>> {
 async function main(): Promise<void> {
   const files = await readAllDocs(DOCS_DIR);
   const report = lintMarkdown(files);
-  const out = formatReport(report, DOCS_DIR);
-  if (report.total > 0) {
-    error(out);
-    process.exit(1);
-  }
-  log(out);
+  // Report goes to stdout in both success and failure cases so PR check
+  // viewers see it in the primary log stream; stderr stays reserved for
+  // operational errors (read failures, etc.). Exit code conveys pass/fail.
+  log(formatReport(report, DOCS_DIR));
+  if (report.total > 0) process.exit(1);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

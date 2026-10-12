@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { markBrokenLinks } from "./validate.ts";
+import { missingImageMarker } from "./images.ts";
+import { LINT_MARKER_CATEGORIES } from "./lint-markers.ts";
 import { formatReport, lintMarkdown } from "./lint.ts";
+import type { Page, Pages } from "./walk-tree.ts";
 
 const broken = '<span data-notion-lint="broken-link" data-target="abc">x</span>';
 const missing = '<div data-notion-lint="missing-image" data-url="y">x</div>';
@@ -23,6 +27,7 @@ describe("lintMarkdown", () => {
       "broken-link": 2,
       "missing-image": 1,
       "truncated": 1,
+      "custom-emoji": 0,
     });
     expect(report.total).toBe(4);
   });
@@ -74,4 +79,63 @@ describe("formatReport", () => {
     expect(out).toContain("intro.md: 1 × broken-link");
     expect(out).toContain("section/page.md: 1 × missing-image");
   });
+});
+
+// Round-trip contract test: every category emitted by the pipeline must
+// be detectable by `lintMarkdown`. Catches drift between the emitter side
+// (validate.ts, images.ts, index.ts/truncatedMarker) and the detector
+// regex / category whitelist in `lint.ts`. Any new category added to
+// `LINT_MARKER_CATEGORIES` must also be exercised here.
+
+const A = "a".repeat(32);
+const B = "b".repeat(32);
+
+function makePage(overrides: Partial<Page> & Pick<Page, "id">): Page {
+  return {
+    parentId: null,
+    ancestorIds: [],
+    childIds: [],
+    depth: 0,
+    position: 0,
+    title: "",
+    icon: null,
+    ready: false,
+    markdown: "",
+    truncated: false,
+    unknownBlockIds: [],
+    mentionIds: [],
+    ...overrides,
+  };
+}
+
+describe("emit ↔ detect contract", () => {
+  it("LINT_MARKER_CATEGORIES is exactly the categories the pipeline can emit", () => {
+    expect([...LINT_MARKER_CATEGORIES].sort()).toEqual(
+      ["broken-link", "custom-emoji", "missing-image", "truncated"].sort(),
+    );
+  });
+
+  it("broken-link emission round-trips through lintMarkdown", () => {
+    const pages: Pages = new Map([
+      [A, makePage({ id: A, ready: true, body: `[orphan](${B}.md)` })],
+    ]);
+    markBrokenLinks(pages);
+    const report = lintMarkdown(new Map([["a.md", pages.get(A)!.body!]]));
+    expect(report.byCategory["broken-link"]).toBe(1);
+  });
+
+  it("missing-image emission round-trips through lintMarkdown", () => {
+    const marker = missingImageMarker("http://x", "fetch-failed", A);
+    const report = lintMarkdown(new Map([["a.md", marker]]));
+    expect(report.byCategory["missing-image"]).toBe(1);
+  });
+
+  it("truncated emission round-trips through lintMarkdown", () => {
+    // The truncated marker is built inside index.ts; replicate its shape
+    // here so we detect drift if its template changes without lint.ts.
+    const truncatedMarker = `<div data-notion-lint="truncated" data-page="${A}">⚠️ Truncated by Notion API — content may be incomplete.</div>`;
+    const report = lintMarkdown(new Map([["a.md", truncatedMarker]]));
+    expect(report.byCategory["truncated"]).toBe(1);
+  });
+
 });

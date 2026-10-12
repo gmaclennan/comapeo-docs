@@ -296,11 +296,41 @@ describe("runExport (pipeline integration)", () => {
     }
   });
 
-  // Missing-image substitution at the pipeline level isn't tested here:
-  // `imageFetch` in `images.ts` captures `globalThis.fetch` at module-eval
-  // time, and `vi.resetModules()` to swap mocks per-test poisons subsequent
-  // tests' module cache. The unit tests in `images.test.ts` (`applyMissingImageMarkers`,
-  // `applyReplacements`) cover the marker rewrite behaviour directly.
+  it("substitutes a missing-image marker when the download fails", async () => {
+    // images.ts builds its fetch pipeline lazily; reset so it re-captures
+    // this test's failing mock instead of reusing the prior test's.
+    const { _resetImageFetchForTesting } = await import("./images.ts");
+    _resetImageFetchForTesting();
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+          ? input.toString()
+          : input.url;
+      if (url.includes("prod-files-secure")) {
+        return new Response("nope", { status: 500 });
+      }
+      return new Response(PNG_1x1, {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      });
+    }) as typeof globalThis.fetch;
+
+    const { runExport } = await import("./index.ts");
+    const opts = await newOpts(tmp);
+    await runExport(opts);
+    const article = await readFile(
+      join(opts.docsDir, "overview", `${ARTICLE}.md`),
+      "utf8",
+    );
+    expect(article).toContain('data-notion-lint="missing-image"');
+    expect(article).toContain('data-category="fetch-failed"');
+
+    // Reset again so subsequent tests get fresh fetch capture from their
+    // own beforeEach.
+    _resetImageFetchForTesting();
+  });
 
   it("appends a prior-slug redirect when the article title changes", async () => {
     const { runExport } = await import("./index.ts");

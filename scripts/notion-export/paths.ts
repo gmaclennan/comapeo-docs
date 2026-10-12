@@ -9,8 +9,8 @@
 // Directory names are slugified from the EN section title. File names are
 // always <pageId>.md so renames in Notion don't rename files.
 //
-// Mutates each Page: sets `relPath` and `dirSegments`. Throws on sibling-
-// section directory collisions.
+// Mutates each Page: sets `relPath`. Throws on sibling-section directory
+// collisions.
 
 import slugify from "@sindresorhus/slugify";
 import type { Page, Pages } from "./walk-tree.ts";
@@ -24,16 +24,16 @@ function isSection(page: Page): boolean {
 }
 
 export function computePagePaths(pages: Pages): void {
-  // dirSegments are the slugified titles of all SECTION ancestors plus
-  // (if this page is itself a section) its own slugified title. So:
-  //   root            → []
-  //   top-level leaf  → []
-  //   section         → [section-slug]
-  //   article in section → [section-slug]
-  //   sub-section     → [section-slug, sub-section-slug]
-  //   leaf in sub-section → [section-slug, sub-section-slug]
+  // Build relPath from slugified section-ancestor titles plus (if this
+  // page is itself a section) its own slugified title. So:
+  //   root            → docs/<id>.md
+  //   top-level leaf  → docs/<id>.md
+  //   section         → docs/<section-slug>/<id>.md
+  //   article in section → docs/<section-slug>/<id>.md
+  //   sub-section     → docs/<section-slug>/<sub-section-slug>/<id>.md
+  //   leaf in sub-section → docs/<section-slug>/<sub-section-slug>/<id>.md
   //
-  // Root never contributes a dir segment — it lives at docs/<rootId>.md.
+  // Root never contributes a dir segment.
   for (const page of pages.values()) {
     const segments: string[] = [];
     for (const ancestorId of page.ancestorIds) {
@@ -46,7 +46,6 @@ export function computePagePaths(pages: Pages): void {
     if (page.parentId !== null && isSection(page)) {
       segments.push(dirSlug(page.title));
     }
-    page.dirSegments = segments;
     page.relPath =
       segments.length === 0
         ? `${page.id}.md`

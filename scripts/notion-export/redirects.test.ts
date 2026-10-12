@@ -42,8 +42,7 @@ const manifest: Manifest = {
 
 describe("buildRedirects", () => {
   it("emits a bare-ID alias per page per locale", () => {
-    const history = emptyHistory();
-    const redirects = buildRedirects(manifest, history);
+    const { redirects } = buildRedirects(manifest, emptyHistory());
     // 2 non-root pages × 3 locales = 6 bare-ID aliases
     const bareIds = redirects.filter((r) =>
       /\/[0-9a-f]{32}$/.test(r.from),
@@ -55,8 +54,7 @@ describe("buildRedirects", () => {
   });
 
   it("bare-ID alias points at the current canonical slug", () => {
-    const history = emptyHistory();
-    const redirects = buildRedirects(manifest, history);
+    const { redirects } = buildRedirects(manifest, emptyHistory());
     const bareId = redirects.find(
       (r) => r.from === `/docs/${ARTICLE}`,
     );
@@ -66,8 +64,7 @@ describe("buildRedirects", () => {
   });
 
   it("does not emit a self-redirect for the root", () => {
-    const history = emptyHistory();
-    const redirects = buildRedirects(manifest, history);
+    const { redirects } = buildRedirects(manifest, emptyHistory());
     for (const r of redirects) {
       expect(r.from).not.toBe("/");
       expect(r.from).not.toMatch(new RegExp(`/${ROOT}$`));
@@ -75,10 +72,9 @@ describe("buildRedirects", () => {
   });
 
   it("emits a prior-slug alias when a page's slug changes between runs", () => {
-    const history: RedirectHistory = {};
-    // First run: appendIfNew seeds the current slug.
-    buildRedirects(manifest, history);
-    // Rename the article and re-run.
+    // First run: seeds the current slug in the returned history.
+    const first = buildRedirects(manifest, emptyHistory());
+    // Rename the article and re-run with the prior history.
     const renamed: Manifest = {
       ...manifest,
       pages: {
@@ -86,7 +82,7 @@ describe("buildRedirects", () => {
         [ARTICLE]: { ...manifest.pages[ARTICLE], title: "Installing CoMapeo" },
       },
     };
-    const redirects = buildRedirects(renamed, history);
+    const { redirects } = buildRedirects(renamed, first.history);
     const priorUrl = `/docs/getting-started-${SECTION}/install-${ARTICLE}`;
     const newCanonical = `/docs/getting-started-${SECTION}/installing-co-mapeo-${ARTICLE}`;
     const aliases = redirects.filter((r) => r.from === priorUrl);
@@ -94,11 +90,39 @@ describe("buildRedirects", () => {
     expect(aliases[0].to).toBe(newCanonical);
   });
 
-  it("does not duplicate history entries when slug is unchanged", () => {
+  it("does not mutate the input history (empty input)", () => {
     const history: RedirectHistory = {};
     buildRedirects(manifest, history);
+    expect(history).toEqual({});
+  });
+
+  it("does not mutate the input history (non-empty input)", () => {
+    // Seed a non-empty history including BOTH a page whose current slug will
+    // match (no append needed) and a page whose slug will change (append).
+    const history: RedirectHistory = {};
+    appendIfNew(history, SECTION, "en", `getting-started`);
+    appendIfNew(history, ARTICLE, "en", `getting-started-${SECTION}/install`);
+    appendIfNew(history, ARTICLE, "en", "stale-prior-prefix");
+    // Snapshot deep-equal-and-not-same-reference.
+    const snapshot = JSON.parse(JSON.stringify(history));
+    const enArrayBefore = history[ARTICLE].en;
+
     buildRedirects(manifest, history);
-    expect(history[ARTICLE]?.en.length).toBe(1);
+
+    expect(history).toEqual(snapshot);
+    // Same array reference is still there — i.e. the function didn't mutate
+    // it in place by pushing.
+    expect(history[ARTICLE].en).toBe(enArrayBefore);
+    expect(history[ARTICLE].en).toEqual([
+      `getting-started-${SECTION}/install`,
+      "stale-prior-prefix",
+    ]);
+  });
+
+  it("does not duplicate history entries when slug is unchanged", () => {
+    const first = buildRedirects(manifest, emptyHistory());
+    const second = buildRedirects(manifest, first.history);
+    expect(second.history[ARTICLE]?.en.length).toBe(1);
   });
 
   it("emits redirects for every prior slug, not just the most recent", () => {
@@ -108,7 +132,7 @@ describe("buildRedirects", () => {
     appendIfNew(history, ARTICLE, "en", "beta");
     appendIfNew(history, ARTICLE, "en", "gamma");
     // Current run will add the manifest-derived current slug as the 4th entry.
-    const redirects = buildRedirects(manifest, history);
+    const { redirects } = buildRedirects(manifest, history);
     const enAliases = redirects.filter(
       (r) =>
         r.from.startsWith("/docs/") &&
@@ -127,7 +151,7 @@ describe("buildRedirects", () => {
     appendIfNew(history, ARTICLE, "en", `getting-started-${SECTION}/install`);
     // appendIfNew with a different prefix bumps the list so this becomes "prior".
     appendIfNew(history, ARTICLE, "en", "tmp");
-    const redirects = buildRedirects(manifest, history);
+    const { redirects } = buildRedirects(manifest, history);
     // No EN alias from the canonical URL to itself.
     const selfAlias = redirects.find(
       (r) =>

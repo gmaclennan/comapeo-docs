@@ -4,9 +4,9 @@
 //   - Notion metadata (title, icon, ready, lastEditedTime)
 //   - Raw markdown from the API
 //
-// Later pipeline steps mutate the same Page objects to add `relPath`,
-// `dirSegments`, and `body`. The orchestrator threads one map through
-// every step instead of maintaining parallel maps.
+// Later pipeline steps mutate the same Page objects to add `relPath` and
+// `body`. The orchestrator threads one map through every step instead of
+// maintaining parallel maps.
 
 import { fileURLToPath } from "node:url";
 import {
@@ -48,8 +48,6 @@ export type Page = {
   // === filled by computePagePaths ===
   /** "section-slug/<pageId>.md", relative to docs/. */
   relPath?: string;
-  /** ["section-slug"]. Empty for root + top-level leaves. */
-  dirSegments?: string[];
 
   // === filled by renderPages (✅ only) ===
   /** Final file body: frontmatter + transformed markdown. */

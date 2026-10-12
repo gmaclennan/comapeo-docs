@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  _resetImageFetchForTesting,
   applyMissingImageMarkers,
   applyReplacements,
   categorizeUrl,
   classifyRefs,
   extractImageRefs,
   missingImageMarker,
+  processImagesInMarkdown,
   resolveFileUrls,
 } from "./images.ts";
+import type { ImageStore } from "./image-store.ts";
 import type { Page } from "./walk-tree.ts";
 
 // vi.mock has to be at module scope.
@@ -290,6 +293,17 @@ describe("applyMissingImageMarkers", () => {
     expect(out).not.toContain("</video>");
   });
 
+  it("replaces a self-closing <video src=…/> element", () => {
+    const url = "https://a.example/v.mp4";
+    const md = `<video src="${url}"/>`;
+    const out = applyMissingImageMarkers(
+      md,
+      new Map([[url, "fetch-failed"]]),
+    );
+    expect(out).toContain('data-notion-lint="missing-image"');
+    expect(out).not.toContain("<video");
+  });
+
   it("leaves URLs not in the markers map untouched", () => {
     const md = "![a](https://stay.example/x.png) ![b](https://fail.example/y.png)";
     const out = applyMissingImageMarkers(
@@ -326,6 +340,67 @@ describe("applyMissingImageMarkers", () => {
     ];
     for (const [cat, expected] of cases) {
       expect(missingImageMarker("x", cat)).toContain(expected);
+    }
+  });
+});
+
+describe("processImagesInMarkdown (warn behavior)", () => {
+  function nullStore(): ImageStore {
+    return {
+      has: async () => false,
+      put: async (key) => `/images/notion/${key}`,
+      urlFor: (key) => `/images/notion/${key}`,
+    };
+  }
+
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    _resetImageFetchForTesting();
+  });
+
+  it("warns once per failed download with page title attribution", async () => {
+    _resetImageFetchForTesting();
+    globalThis.fetch = vi.fn(
+      async () => new Response("nope", { status: 500 }),
+    ) as typeof globalThis.fetch;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const url =
+        "https://prod-files-secure.s3.us-west-2.amazonaws.com/fail.png";
+      const md = `![alt](${url})`;
+      const page = makePage({ id: "p1", title: "Page One" });
+      const out = await processImagesInMarkdown(md, {
+        store: nullStore(),
+        page,
+      });
+      expect(out.markdown).toContain('data-notion-lint="missing-image"');
+      expect(out.markdown).toContain('data-category="fetch-failed"');
+      const messages = warnSpy.mock.calls.map((c) => c.join(" "));
+      expect(messages.some((m) => m.includes("image fetch failed"))).toBe(true);
+      expect(messages.some((m) => m.includes('on "Page One"'))).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("warns once per bare-filename lint entry", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const md = `![alt](bare.png)`;
+      const page = makePage({ id: "p2", title: "Page Two" });
+      await processImagesInMarkdown(md, { store: nullStore(), page });
+      const messages = warnSpy.mock.calls.map((c) => c.join(" "));
+      expect(
+        messages.some(
+          (m) =>
+            m.includes("image lint: bare-filename") &&
+            m.includes('"Page Two"') &&
+            m.includes("bare.png"),
+        ),
+      ).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
     }
   });
 });

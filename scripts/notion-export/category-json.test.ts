@@ -20,7 +20,6 @@ function section(overrides: Partial<Page> = {}): Page {
     unknownBlockIds: [],
     mentionIds: [],
     relPath: `getting-started/${ID}.md`,
-    dirSegments: ["getting-started"],
     ...overrides,
   };
 }

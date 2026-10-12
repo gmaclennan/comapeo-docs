@@ -25,7 +25,6 @@ function page(overrides: Partial<Page> & Pick<Page, "id">): Page {
     unknownBlockIds: [],
     mentionIds: [],
     relPath: `${overrides.id}.md`,
-    dirSegments: [],
     ...overrides,
   };
 }
@@ -86,14 +85,13 @@ describe("syncFilesystem", () => {
     expect(await readBody(docsDir, `${A}.md`)).toBe("new\n");
   });
 
-  it("moves a renamed page (file lives at the new dirSegments path)", async () => {
+  it("moves a renamed page (file lives at the new relPath)", async () => {
     await seed(docsDir, `old-section/${A}.md`, "body\n");
     const pages = makePages(
       page({
         id: A,
         ready: true,
         body: "body\n",
-        dirSegments: ["new-section"],
         relPath: `new-section/${A}.md`,
       }),
     );
@@ -112,7 +110,6 @@ describe("syncFilesystem", () => {
         id: A,
         ready: true,
         body: "new body\n",
-        dirSegments: ["new-section"],
         relPath: `new-section/${A}.md`,
       }),
     );
@@ -155,7 +152,6 @@ describe("syncFilesystem", () => {
         id: A,
         ready: true,
         body: "body\n",
-        dirSegments: ["new-section"],
         relPath: `new-section/${A}.md`,
       }),
     );

@@ -2,7 +2,9 @@
 //
 // Each step takes (pages, options) and mutates pages in place. The orchestrator
 // reads top to bottom like a recipe; data flow is "the pages map gains more
-// fields as we go". No parallel maps or accumulated action lists.
+// fields as we go". Content-quality failures (broken links, missing images,
+// truncation) become visible `data-notion-lint` markers IN page.body — the
+// markers ARE the report. The orchestrator only tracks counts.
 
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -11,25 +13,16 @@ import { error, log, warn } from "./logger.ts";
 import { walkNotionTree, type Page, type Pages } from "./walk-tree.ts";
 import { computePagePaths } from "./paths.ts";
 import { transformPageMarkdown } from "./transform.ts";
-import {
-  processImagesInMarkdown,
-  type ImageLint,
-} from "./images.ts";
+import { processImagesInMarkdown } from "./images.ts";
 import { makeImageStore, type ImageStore } from "./image-store.ts";
+import { LINT_ATTRIBUTE } from "./lint-markers.ts";
 import { renderPageFile } from "./frontmatter.ts";
 import { syncFilesystem } from "./write-files.ts";
 import { writeCategoryConfig } from "./category-json.ts";
 import { buildManifest, writeManifest } from "./manifest.ts";
-import {
-  buildRedirects,
-  writeRedirectsFile,
-} from "./redirects.ts";
-import {
-  readHistory,
-  writeHistory,
-  type RedirectHistory,
-} from "./redirect-history.ts";
-import { applyBrokenLinkMarkers, validateCrossPageLinks } from "./validate.ts";
+import { buildRedirects, writeRedirectsFile } from "./redirects.ts";
+import { readHistory, writeHistory } from "./redirect-history.ts";
+import { markBrokenLinks } from "./validate.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 const DOCS_DIR = join(REPO_ROOT, "docs");
@@ -47,13 +40,11 @@ export type ExportOptions = {
   imageStore: ImageStore;
 };
 
-type RenderSummary = {
+type RenderCounts = {
   rendered: number;
-  imagesDownloaded: number;
-  imagesReused: number;
-  imagesFailed: Array<{ url: string; error: string }>;
-  imagesLint: ImageLint[];
-  imagesBytes: number;
+  downloaded: number;
+  reused: number;
+  bytes: number;
 };
 
 // === Step: render markdown + download images for ✅ pages ================
@@ -61,17 +52,15 @@ type RenderSummary = {
 async function renderPages(
   pages: Pages,
   options: ExportOptions,
-): Promise<RenderSummary> {
+): Promise<RenderCounts> {
   const titles = new Map<string, string>();
   for (const page of pages.values()) titles.set(page.id, page.title || page.id);
 
-  const summary: RenderSummary = {
+  const counts: RenderCounts = {
     rendered: 0,
-    imagesDownloaded: 0,
-    imagesReused: 0,
-    imagesFailed: [],
-    imagesLint: [],
-    imagesBytes: 0,
+    downloaded: 0,
+    reused: 0,
+    bytes: 0,
   };
 
   for (const page of pages.values()) {
@@ -85,15 +74,13 @@ async function renderPages(
       { title: page.title || "(untitled)" },
       work.markdown,
     );
-    summary.rendered += 1;
-    summary.imagesDownloaded += work.downloaded;
-    summary.imagesReused += work.reused;
-    summary.imagesFailed.push(...work.failed);
-    summary.imagesLint.push(...work.lint);
-    summary.imagesBytes += work.bytes;
+    counts.rendered += 1;
+    counts.downloaded += work.downloaded;
+    counts.reused += work.reused;
+    counts.bytes += work.bytes;
   }
 
-  return summary;
+  return counts;
 }
 
 // Truncation is only meaningful when the API didn't also flag unknown
@@ -104,18 +91,20 @@ function isGenuinelyTruncated(page: Page): boolean {
   return page.truncated && page.unknownBlockIds.length === 0;
 }
 
-const TRUNCATED_MARKER =
-  '\n\n<div data-notion-lint="truncated">⚠️ Truncated by Notion API — content may be incomplete.</div>\n';
+function truncatedMarker(pageId: string): string {
+  return `\n\n<div ${LINT_ATTRIBUTE}="truncated" data-page="${pageId}">⚠️ Truncated by Notion API — content may be incomplete.</div>\n`;
+}
 
-function appendTruncatedMarkers(pages: Pages): Page[] {
-  const truncated: Page[] = [];
+function markTruncated(pages: Pages): number {
+  let count = 0;
   for (const page of pages.values()) {
     if (!page.body) continue;
     if (!isGenuinelyTruncated(page)) continue;
-    page.body = page.body + TRUNCATED_MARKER;
-    truncated.push(page);
+    page.body = page.body + truncatedMarker(page.id);
+    warn(`truncated by Notion API: "${page.title}" (${page.id})`);
+    count += 1;
   }
-  return truncated;
+  return count;
 }
 
 // === Orchestrator =======================================================
@@ -133,30 +122,11 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
   const tRender = performance.now();
   const render = await renderPages(pages, options);
   log(
-    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms (images: ${render.imagesDownloaded} downloaded, ${render.imagesReused} reused, ${render.imagesFailed.length} failed, ${render.imagesLint.length} lint, ${(render.imagesBytes / 1024).toFixed(0)} KB)`,
+    `Rendered ${render.rendered} pages in ${(performance.now() - tRender).toFixed(0)}ms (images: ${render.downloaded} downloaded, ${render.reused} reused, ${(render.bytes / 1024).toFixed(0)} KB)`,
   );
-  for (const f of render.imagesFailed) {
-    warn(`image fetch failed: ${f.url} (${f.error})`);
-  }
-  for (const l of render.imagesLint) {
-    warn(`image lint: ${l.category} — "${l.pageTitle}" (${l.url})`);
-  }
 
-  // Append a visible marker to pages truncated by the Notion API (excluding
-  // truncation that's just a side effect of stripped unknown blocks).
-  const truncated = appendTruncatedMarkers(pages);
-  for (const p of truncated) {
-    warn(`truncated by Notion API: "${p.title}" (${p.id})`);
-  }
-
-  // Detect broken cross-page links, then rewrite them in `page.body` to
-  // visible `data-notion-lint="broken-link"` spans so reviewers see the
-  // failure on the staging preview before merging the promotion PR.
-  const brokenLinks = validateCrossPageLinks(pages);
-  for (const b of brokenLinks) {
-    warn(`broken link: "${b.sourceTitle}" → ${b.targetPageId} (${b.reason})`);
-  }
-  applyBrokenLinkMarkers(pages, brokenLinks);
+  const truncated = markTruncated(pages);
+  const brokenLinks = markBrokenLinks(pages);
 
   const fs = await syncFilesystem(pages, { docsDir: options.docsDir });
   const categories = await writeCategoryConfig(pages, {
@@ -166,13 +136,13 @@ export async function runExport(options: ExportOptions): Promise<Pages> {
   // Manifest first, then redirects (which read from it).
   const manifest = buildManifest(pages);
   await writeManifest(manifest, { manifestPath: options.manifestPath });
-  const history: RedirectHistory = await readHistory(options.historyPath);
-  const redirects = buildRedirects(manifest, history);
+  const priorHistory = await readHistory(options.historyPath);
+  const { redirects, history } = buildRedirects(manifest, priorHistory);
   await writeHistory(history, options.historyPath);
   await writeRedirectsFile(redirects, options.redirectsPath);
 
   log(
-    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; ${categories} _category_.json, ${redirects.length} redirects, ${brokenLinks.length} broken links, ${render.imagesFailed.length + render.imagesLint.length} missing images, ${truncated.length} truncated pages`,
+    `Files: ${fs.written} written, ${fs.unchanged} unchanged, ${fs.moved} moved, ${fs.deleted} deleted; ${categories} _category_.json, ${redirects.length} redirects, ${brokenLinks} broken links, ${truncated} truncated pages`,
   );
 
   return pages;

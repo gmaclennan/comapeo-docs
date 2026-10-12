@@ -17,12 +17,13 @@
 // Sprint D ships EN-only. The es/pt branches are wired but the history
 // stays empty until Phase 4.5 wires Crowdin.
 
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { computeSlug } from "./compute-slug.ts";
 import type { Manifest } from "./manifest.ts";
 import {
   appendIfNew,
-  emptyHistory,
+  cloneHistory,
   LOCALES,
   priorPrefixes,
   type RedirectHistory,
@@ -55,15 +56,23 @@ function computeEnSlugs(manifest: Manifest): Map<string, string> {
 
 type Redirect = { from: string; to: string; status: 302 };
 
+export type BuildRedirectsResult = {
+  redirects: Redirect[];
+  /** Updated history with this run's current prefixes appended. The caller
+   *  persists it via `writeHistory`. */
+  history: RedirectHistory;
+};
+
 /**
- * Build the redirect set from manifest + history. Mutates `history` by
- * appending new prefixes when slugs change; the caller is responsible for
- * persisting it.
+ * Build the redirect set from manifest + history. Pure: the input
+ * `history` is not mutated. Returns the new history with this run's
+ * current prefixes appended; the caller persists it.
  */
 export function buildRedirects(
   manifest: Manifest,
   history: RedirectHistory,
-): Redirect[] {
+): BuildRedirectsResult {
+  const next = cloneHistory(history);
   const enSlugs = computeEnSlugs(manifest);
   const redirects: Redirect[] = [];
 
@@ -86,9 +95,9 @@ export function buildRedirects(
 
       // Track current prefix in history; emit aliases for prior prefixes.
       const currentPrefix = slugPrefix(enSlug, pageId);
-      appendIfNew(history, pageId, locale, currentPrefix);
+      appendIfNew(next, pageId, locale, currentPrefix);
 
-      for (const prior of priorPrefixes(history, pageId, locale)) {
+      for (const prior of priorPrefixes(next, pageId, locale)) {
         const priorUrl = `${localePrefix(locale)}${DOCS_BASE}/${prior}-${pageId}`;
         if (priorUrl === canonicalUrl) continue;
         redirects.push({ from: priorUrl, to: canonicalUrl, status: 302 });
@@ -96,7 +105,7 @@ export function buildRedirects(
     }
   }
 
-  return redirects;
+  return { redirects, history: next };
 }
 
 /** Serialise to Cloudflare Pages `_redirects` file format. */
@@ -116,5 +125,6 @@ export async function writeRedirectsFile(
   redirects: Redirect[],
   path: string,
 ): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(path, formatRedirects(redirects), "utf8");
 }

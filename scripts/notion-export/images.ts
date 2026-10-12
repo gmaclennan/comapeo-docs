@@ -20,6 +20,11 @@ import { pipeline, withConcurrency, withRetry } from "fetch-extras";
 import { fetchBlock } from "./fetch.ts";
 import { resolveFileAttachmentUrl } from "./file-attachments.ts";
 import type { ImageStore } from "./image-store.ts";
+import {
+  LINT_ATTRIBUTE,
+  type MissingImageSubcategory,
+} from "./lint-markers.ts";
+import { warn } from "./logger.ts";
 import type { Page } from "./walk-tree.ts";
 
 // === Regexes ============================================================
@@ -32,12 +37,15 @@ const IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D|[^)]+)\)/g;
 // `<img>` is intentionally absent — Notion never emits it (SKILL.md §Media).
 const HTML_SRC_RE = /<(?:video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*\/?>/gi;
 
-// Full-element matcher (opening + content + matching close). Used by
-// `applyMissingImageMarkers` to swap the whole element for a marker div —
-// the src-only swap in `applyReplacements` would leave an orphaned
-// `cap</video>` tail when the element is replaced wholesale.
+// Full-element matcher used by `applyMissingImageMarkers` to swap the
+// whole element for a marker div. Matches both forms:
+//   - paired: `<video src="…">cap</video>`
+//   - self-closing: `<video src="…"/>` (rare; Notion typically emits paired)
+// The src-only swap in `applyReplacements` (HTML_SRC_RE) would leave an
+// orphaned `cap</video>` tail if used for marker substitution, hence this
+// separate matcher.
 const HTML_ELEMENT_RE =
-  /<(video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*>[\s\S]*?<\/\1\s*>/gi;
+  /<(video|audio|file|pdf)\s[^>]*\bsrc="([^"]+)"[^>]*(?:\/>|>[\s\S]*?<\/\1\s*>)/gi;
 
 // Standalone file:// URL matcher for the pre-resolution pass.
 const FILE_URL_IN_IMAGE_RE = /!\[([^\]]*)\]\((file:[^\s"<>]*?%7D)\)/g;
@@ -69,9 +77,7 @@ export type ImageWork = {
   markdown: string;
   downloaded: number;
   reused: number;
-  failed: Array<{ url: string; error: string }>;
   bytes: number;
-  lint: ImageLint[];
 };
 
 export type ProcessImagesOptions = {
@@ -192,11 +198,32 @@ function extFromUrl(url: string): string {
   return ".bin";
 }
 
-const imageFetch = pipeline(
-  fetch,
-  withConcurrency({ maxConcurrentRequests: 5 }),
-  withRetry({ retries: 2 }),
-);
+// Built lazily on first use so the fetch reference is captured AFTER any
+// test-time `globalThis.fetch` mock is installed. `_resetImageFetchForTesting`
+// clears the cached pipeline so each test can install its own mock.
+let _imageFetch:
+  | ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>)
+  | null = null;
+
+function imageFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  if (!_imageFetch) {
+    _imageFetch = pipeline(
+      fetch,
+      withConcurrency({ maxConcurrentRequests: 5 }),
+      withRetry({ retries: 2 }),
+    );
+  }
+  return _imageFetch(input, init);
+}
+
+/** Test-only: drop the cached fetch pipeline so the next call re-captures
+ *  the current `globalThis.fetch`. Production callers never invoke this. */
+export function _resetImageFetchForTesting(): void {
+  _imageFetch = null;
+}
 
 export type DownloadResult = {
   replacements: Map<string, string>;
@@ -276,11 +303,6 @@ export function applyReplacements(
   return out;
 }
 
-export type MissingImageCategory =
-  | "fetch-failed"
-  | "file-unresolved"
-  | "bare-filename";
-
 function escapeAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -291,11 +313,13 @@ function escapeAttribute(value: string): string {
 
 export function missingImageMarker(
   url: string,
-  category: MissingImageCategory,
+  category: MissingImageSubcategory,
+  pageId?: string,
 ): string {
   // Surround with blank lines so the block-level div doesn't end up nested
   // inside a paragraph (MDX would warn) when the original image was inline.
-  return `\n\n<div data-notion-lint="missing-image" data-url="${escapeAttribute(url)}" data-category="${category}">⚠️ Missing image</div>\n\n`;
+  const pageAttr = pageId ? ` data-page="${pageId}"` : "";
+  return `\n\n<div ${LINT_ATTRIBUTE}="missing-image"${pageAttr} data-url="${escapeAttribute(url)}" data-category="${category}">⚠️ Missing image</div>\n\n`;
 }
 
 /**
@@ -309,18 +333,19 @@ export function missingImageMarker(
  */
 export function applyMissingImageMarkers(
   markdown: string,
-  markers: Map<string, MissingImageCategory>,
+  markers: Map<string, MissingImageSubcategory>,
+  pageId?: string,
 ): string {
   if (markers.size === 0) return markdown;
 
   let out = markdown.replace(IMAGE_RE, (whole, _alt: string, url: string) => {
     const category = markers.get(url);
-    return category ? missingImageMarker(url, category) : whole;
+    return category ? missingImageMarker(url, category, pageId) : whole;
   });
 
   out = out.replace(HTML_ELEMENT_RE, (whole, _tag: string, url: string) => {
     const category = markers.get(url);
-    return category ? missingImageMarker(url, category) : whole;
+    return category ? missingImageMarker(url, category, pageId) : whole;
   });
 
   return out;
@@ -329,8 +354,8 @@ export function applyMissingImageMarkers(
 function buildMarkersMap(
   failed: Array<{ url: string }>,
   lint: ImageLint[],
-): Map<string, MissingImageCategory> {
-  const markers = new Map<string, MissingImageCategory>();
+): Map<string, MissingImageSubcategory> {
+  const markers = new Map<string, MissingImageSubcategory>();
   for (const f of failed) markers.set(f.url, "fetch-failed");
   for (const l of lint) {
     markers.set(
@@ -346,11 +371,11 @@ function buildMarkersMap(
 /**
  * Replace image URLs in the markdown body with public ImageStore URLs.
  *
- * Returns a per-page work record (counts + lint entries). The caller
- * aggregates across pages; nothing is logged or mutated outside the
- * returned value.
- *
- * `options.page` is used only for lint-report attribution (id + title).
+ * Returns counts + the rewritten markdown. Failed downloads and lint-
+ * worthy refs (file://, bare-filename) are surfaced two ways: a visible
+ * marker is written into the markdown, and a warn() is logged inline.
+ * Nothing is propagated up for the orchestrator to aggregate — the
+ * markers ARE the report.
  */
 export async function processImagesInMarkdown(
   markdown: string,
@@ -362,15 +387,20 @@ export async function processImagesInMarkdown(
   const dl = await downloadAll(downloadable, options.store);
   const markers = buildMarkersMap(dl.failed, lint);
   let out = applyReplacements(resolved.markdown, dl.replacements);
-  out = applyMissingImageMarkers(out, markers);
+  out = applyMissingImageMarkers(out, markers, options.page.id);
+
+  for (const f of dl.failed) {
+    warn(`image fetch failed: ${f.url} (${f.error}) on "${options.page.title}"`);
+  }
+  for (const l of lint) {
+    warn(`image lint: ${l.category} — "${l.pageTitle}" (${l.url})`);
+  }
 
   return {
     markdown: out,
     downloaded: dl.downloaded,
     reused: dl.reused,
-    failed: dl.failed,
     bytes: dl.bytes,
-    lint,
   };
 }
 

@@ -41,16 +41,16 @@ env.ts            lazy env getters (NOTION_API_KEY required, NOTION_ROOT_PAGE_ID
 fetch.ts          Notion API client via fetch-extras (rate limit 3 rps, retry 429/5xx)
 parse.ts          pure regex helpers for <page> / <mention-page> tag IDs
 walk-tree.ts      walkNotionTree() returns Map<pageId, Page>; CLI when invoked directly
-paths.ts          mutates Pages with relPath + dirSegments from ancestor chain
+paths.ts          mutates Pages with relPath from ancestor chain
 transform.ts      Notion markdown → Docusaurus markdown via node-html-parser (HTML tags) + regex (inline)
 image-store.ts    ImageStore interface + LocalImageStore + makeImageStore factory (R2 swap-in point)
-images.ts         processImagesInMarkdown: extract → classify → download → rewrite; returns ImageWork. Failed/lint URLs get `data-notion-lint="missing-image"` markers.
+images.ts         processImagesInMarkdown: extract → classify → download → rewrite; warns per failed/lint URL and writes `data-notion-lint="missing-image"` markers in place
 frontmatter.ts    emit minimal `title:` YAML
 category-json.ts  _category_.json per section dir; doc-id derived from page.relPath
 write-files.ts    glob, diff vs Pages map, write/move/delete in one inline pass
-validate.ts       cross-page link detection + applyBrokenLinkMarkers rewrite (`data-notion-lint="broken-link"`)
+validate.ts       markBrokenLinks: detects + rewrites cross-page broken links to `data-notion-lint="broken-link"` spans in one pass; returns count
 lint.ts           pure marker-counting + CLI for `pnpm lint:content`
-index.ts          orchestrator: walkNotionTree → computePagePaths → renderPages → applyBrokenLinkMarkers → syncFilesystem → writeCategoryConfig → manifest → redirects
+index.ts          orchestrator: walkNotionTree → computePagePaths → renderPages → markTruncated → markBrokenLinks → syncFilesystem → writeCategoryConfig → manifest → redirects
 logger.ts         tiny `[notion-export]` prefixed logger; --verbose / VERBOSE for debug
 ```
 
@@ -58,7 +58,7 @@ logger.ts         tiny `[notion-export]` prefixed logger; --verbose / VERBOSE fo
 
 ```
 walkNotionTree(options)                          Pages built from Notion
-computePagePaths(pages)                          adds relPath, dirSegments
+computePagePaths(pages)                          adds relPath
 renderPages(pages, options)                      adds body for ✅ pages; downloads images
 syncFilesystem(pages, options)                   writes/moves/deletes files in docs/
 writeCategoryConfig(pages, options)              writes _category_.json per section

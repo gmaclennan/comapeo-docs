@@ -10,6 +10,12 @@ name: Lint content
 on:
   pull_request:
     branches: [published]
+    paths:
+      - "docs/**"
+      - "scripts/notion-export/lint.ts"
+      - "scripts/notion-export/lint-markers.ts"
+      - "src/plugins/notion-lint/**"
+      - ".github/workflows/lint-content.yml"
 
 permissions:
   contents: read

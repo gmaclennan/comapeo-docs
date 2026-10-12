@@ -32,12 +32,11 @@ function makePages(...entries: Page[]): Pages {
 }
 
 describe("computePagePaths", () => {
-  it("root page lives at the top of docs/ with no dir segments", () => {
+  it("root page lives at the top of docs/", () => {
     const root = page({ id: ROOT, title: "Root" });
     const pages = makePages(root);
     computePagePaths(pages);
     expect(root.relPath).toBe(`${ROOT}.md`);
-    expect(root.dirSegments).toEqual([]);
   });
 
   it("top-level leaf page (no children) lives alongside root", () => {
@@ -52,7 +51,6 @@ describe("computePagePaths", () => {
     const pages = makePages(root, leaf);
     computePagePaths(pages);
     expect(leaf.relPath).toBe(`${A}.md`);
-    expect(leaf.dirSegments).toEqual([]);
   });
 
   it("section page (has children) lives in its own slugified directory", () => {
@@ -75,12 +73,10 @@ describe("computePagePaths", () => {
     const pages = makePages(root, section, child);
     computePagePaths(pages);
     expect(section.relPath).toBe(`getting-started/${A}.md`);
-    expect(section.dirSegments).toEqual(["getting-started"]);
     expect(child.relPath).toBe(`getting-started/${B}.md`);
-    expect(child.dirSegments).toEqual(["getting-started"]);
   });
 
-  it("nested section: grandchild gets two dir segments", () => {
+  it("nested section: grandchild lives two directories deep", () => {
     const root = page({ id: ROOT, childIds: [A] });
     const section = page({
       id: A,
@@ -109,7 +105,6 @@ describe("computePagePaths", () => {
     computePagePaths(pages);
     expect(subSection.relPath).toBe(`getting-started/photos/${B}.md`);
     expect(grandchild.relPath).toBe(`getting-started/photos/${C}.md`);
-    expect(grandchild.dirSegments).toEqual(["getting-started", "photos"]);
   });
 
   it("throws when two sibling sections would share the same directory slug", () => {
