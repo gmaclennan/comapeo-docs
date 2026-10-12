@@ -267,16 +267,6 @@
       "isSection": true,
       "isRoot": false
     },
-    "360c90f22b6381768fbbf1a9a6cf0bdd": {
-      "title": "Introduction",
-      "parentId": "360c90f22b638123aa2cd7169f9b716e",
-      "ancestorIds": [
-        "360c90f22b6381b5a108c49dfb1ff9af",
-        "360c90f22b638123aa2cd7169f9b716e"
-      ],
-      "isSection": false,
-      "isRoot": false
-    },
     "360c90f22b6381769168e379cbf6d437": {
       "title": "Using Observations outside of CoMapeo",
       "parentId": "360c90f22b6381faa160ef4dd8044b25",
@@ -585,6 +575,16 @@
       "ancestorIds": [
         "360c90f22b6381b5a108c49dfb1ff9af",
         "360c90f22b63819aa4cdc9a15c7ef1a5"
+      ],
+      "isSection": false,
+      "isRoot": false
+    },
+    "869c90f22b638221b44301d5412b4ee0": {
+      "title": "Introduction",
+      "parentId": "360c90f22b638123aa2cd7169f9b716e",
+      "ancestorIds": [
+        "360c90f22b6381b5a108c49dfb1ff9af",
+        "360c90f22b638123aa2cd7169f9b716e"
       ],
       "isSection": false,
       "isRoot": false
