@@ -3,6 +3,7 @@ import { markBrokenLinks } from "./validate.ts";
 import { missingImageMarker } from "./images.ts";
 import { LINT_MARKER_CATEGORIES } from "./lint-markers.ts";
 import { formatReport, lintMarkdown } from "./lint.ts";
+import { transformPageMarkdown } from "./transform.ts";
 import type { Page, Pages } from "./walk-tree.ts";
 
 const broken = '<span data-notion-lint="broken-link" data-target="abc">x</span>';
@@ -138,4 +139,9 @@ describe("emit ↔ detect contract", () => {
     expect(report.byCategory["truncated"]).toBe(1);
   });
 
+  it("custom-emoji emission round-trips through lintMarkdown", () => {
+    const out = transformPageMarkdown("Tap :app-icon-camera: to start", new Map());
+    const report = lintMarkdown(new Map([["a.md", out]]));
+    expect(report.byCategory["custom-emoji"]).toBe(1);
+  });
 });
